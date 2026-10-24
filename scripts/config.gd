@@ -24,6 +24,14 @@ const ARENA_RADIUS: float = 10.0
 const ARENA_HEIGHT: float = 1.0
 const OUT_OF_BOUNDS_Y: float = -4.0
 
+# Phase 2: Dynamische Arenen
+const SPINNER_RADIUS: float = 6.0
+const SPINNER_MAX_OMEGA: float = 2.4
+const SPINNER_PERIOD: float = 8.0
+
+const SEESAW_MAX_TILT_DEG: float = 16.0
+const SEESAW_STIFFNESS: float = 3.5
+
 # Fallen & Hazards
 const TRAP_SNAP_IMPULSE_Y: float = 24.0
 const TRAP_TILT_IMPULSE: float = 8.0

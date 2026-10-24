@@ -6,8 +6,14 @@ const RollStateManager = preload("res://scripts/state_manager.gd")
 const PlayerBall = preload("res://scripts/player_ball.gd")
 const MousetrapHazard = preload("res://scripts/mousetrap.gd")
 const SharedArenaCamera = preload("res://scripts/shared_camera.gd")
+const BaseArena = preload("res://scripts/arenas/base_arena.gd")
+const ClassicRingArena = preload("res://scripts/arenas/classic_ring.gd")
+const DizzySpinnerArena = preload("res://scripts/arenas/dizzy_spinner.gd")
+const WobblySeesawArena = preload("res://scripts/arenas/wobbly_seesaw.gd")
 
 var state_manager: RollStateManager
+var current_arena: BaseArena
+var selected_arena_type: BaseArena.ArenaType = BaseArena.ArenaType.CLASSIC_RING
 var player1: PlayerBall
 var player2: PlayerBall
 var player3: PlayerBall
@@ -16,6 +22,9 @@ var players: Array[PlayerBall] = []
 var camera: SharedArenaCamera
 
 var ui_lobby_panel: Control
+var ui_arena_card: Panel
+var ui_arena_title_label: Label
+var ui_arena_desc_label: Label
 var ui_slot_labels: Array[Label] = []
 var ui_timer_label: Label
 var ui_score_labels: Dictionary = {}
@@ -54,49 +63,7 @@ func _build_scene() -> void:
 	light.shadow_enabled = true
 	add_child(light)
 	
-	# 2. Arena-Plattform (Cylinder)
-	var arena_body = StaticBody3D.new()
-	arena_body.name = "ArenaPlatform"
-	arena_body.position = Vector3(0, -RollConfig.ARENA_HEIGHT * 0.5, 0)
-	
-	var arena_phys = PhysicsMaterial.new()
-	arena_phys.friction = RollConfig.ARENA_FRICTION
-	arena_phys.bounce = 0.3
-	arena_body.physics_material_override = arena_phys
-	
-	var col = CollisionShape3D.new()
-	var cyl_shape = CylinderShape3D.new()
-	cyl_shape.radius = RollConfig.ARENA_RADIUS
-	cyl_shape.height = RollConfig.ARENA_HEIGHT
-	col.shape = cyl_shape
-	arena_body.add_child(col)
-	
-	var mesh_inst = MeshInstance3D.new()
-	var cyl_mesh = CylinderMesh.new()
-	cyl_mesh.top_radius = RollConfig.ARENA_RADIUS
-	cyl_mesh.bottom_radius = RollConfig.ARENA_RADIUS
-	cyl_mesh.height = RollConfig.ARENA_HEIGHT
-	mesh_inst.mesh = cyl_mesh
-	
-	var arena_mat = StandardMaterial3D.new()
-	arena_mat.albedo_color = Color(0.2, 0.45, 0.75)
-	arena_mat.roughness = 0.5
-	mesh_inst.material_override = arena_mat
-	arena_body.add_child(mesh_inst)
-	add_child(arena_body)
-	
-	# 3. Vier Mausefallen
-	var trap_angles = [0.0, PI * 0.5, PI, PI * 1.5]
-	for i in range(trap_angles.size()):
-		var angle = trap_angles[i]
-		var trap = MousetrapHazard.new()
-		trap.name = "Mousetrap_%d" % i
-		var dist = RollConfig.ARENA_RADIUS * 0.65
-		trap.position = Vector3(cos(angle) * dist, 0.075, sin(angle) * dist)
-		trap.rotation.y = -angle
-		add_child(trap)
-	
-	# 4. 4 Spieler-Kugeln
+	# 2. 4 Spieler-Kugeln
 	var p_configs = [
 		{"id": 1, "name": "Player1_Red", "color": Color(0.95, 0.25, 0.25), "pos": Vector3(-5.0, RollConfig.BALL_RADIUS + 0.1, 0.0), "ctrl": PlayerBall.ControlType.HUMAN_KB1},
 		{"id": 2, "name": "Player2_Blue", "color": Color(0.2, 0.55, 0.95), "pos": Vector3(5.0, RollConfig.BALL_RADIUS + 0.1, 0.0), "ctrl": PlayerBall.ControlType.AI_BOT},
@@ -126,13 +93,16 @@ func _build_scene() -> void:
 	player1.target_opponent = player2
 	player2.target_opponent = player1
 	
-	# 5. Shared Camera
+	# 3. Shared Camera
 	camera = SharedArenaCamera.new()
 	camera.name = "SharedCamera"
 	camera.position = Vector3(0, RollConfig.CAMERA_BASE_HEIGHT, RollConfig.CAMERA_MIN_DISTANCE)
 	camera.target_nodes = players
 	camera.current = true
 	add_child(camera)
+	
+	# 4. Aktive Arena laden
+	_load_arena(selected_arena_type)
 
 func _build_ui() -> void:
 	var canvas = CanvasLayer.new()
@@ -204,7 +174,7 @@ func _build_ui() -> void:
 	ui_lobby_panel.add_child(title)
 	
 	var subtitle = Label.new()
-	subtitle.text = "Wähle Steuerung pro Slot ([1]-[4] drücken) & starte mit [SPACE / ENTER]"
+	subtitle.text = "Slots: [1]-[4]  |  Arena wechseln: [T] oder [A]  |  Start mit [SPACE / ENTER]"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.position = Vector2(240, 100)
 	subtitle.size = Vector2(800, 30)
@@ -249,7 +219,30 @@ func _build_ui() -> void:
 		key_hint.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75))
 		card.add_child(key_hint)
 	
+	# Arena Selection Card in Lobby
+	ui_arena_card = Panel.new()
+	ui_arena_card.position = Vector2(80, 535)
+	ui_arena_card.size = Vector2(1100, 105)
+	ui_lobby_panel.add_child(ui_arena_card)
+	
+	ui_arena_title_label = Label.new()
+	ui_arena_title_label.position = Vector2(20, 12)
+	ui_arena_title_label.size = Vector2(1060, 35)
+	ui_arena_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_arena_title_label.add_theme_font_size_override("font_size", 24)
+	ui_arena_title_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	ui_arena_card.add_child(ui_arena_title_label)
+	
+	ui_arena_desc_label = Label.new()
+	ui_arena_desc_label.position = Vector2(20, 52)
+	ui_arena_desc_label.size = Vector2(1060, 42)
+	ui_arena_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_arena_desc_label.add_theme_font_size_override("font_size", 17)
+	ui_arena_desc_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	ui_arena_card.add_child(ui_arena_desc_label)
+	
 	_update_lobby_ui()
+	_update_arena_ui()
 	canvas.add_child(ui_lobby_panel)
 	add_child(canvas)
 
@@ -311,6 +304,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				cycle_player_slot(2)
 			elif event.keycode == KEY_4:
 				cycle_player_slot(3)
+			elif event.keycode == KEY_T or event.keycode == KEY_A or event.keycode == KEY_LEFT or event.keycode == KEY_RIGHT:
+				cycle_arena()
 			elif event.keycode == KEY_SPACE or event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
 				start_match_from_lobby()
 		else:
@@ -318,6 +313,45 @@ func _unhandled_input(event: InputEvent) -> void:
 				return_to_lobby()
 			elif event.keycode == KEY_B:
 				toggle_p2_bot()
+
+func cycle_arena() -> void:
+	var total_types = BaseArena.ArenaType.values().size()
+	selected_arena_type = ((int(selected_arena_type) + 1) % total_types) as BaseArena.ArenaType
+	_load_arena(selected_arena_type)
+	_update_arena_ui()
+
+func _load_arena(type: BaseArena.ArenaType) -> void:
+	if current_arena:
+		current_arena.queue_free()
+		remove_child(current_arena)
+		current_arena = null
+	
+	match type:
+		BaseArena.ArenaType.CLASSIC_RING:
+			current_arena = ClassicRingArena.new()
+		BaseArena.ArenaType.DIZZY_SPINNER:
+			current_arena = DizzySpinnerArena.new()
+		BaseArena.ArenaType.WOBBLY_SEESAW:
+			current_arena = WobblySeesawArena.new()
+		_:
+			current_arena = ClassicRingArena.new()
+	
+	current_arena.name = "ActiveArena"
+	add_child(current_arena)
+	
+	# Spawn-Punkte für Spieler aktualisieren
+	var spawn_spots = current_arena.get_spawn_positions(players.size())
+	for i in range(players.size()):
+		if i < spawn_spots.size():
+			players[i].initial_spawn_point = spawn_spots[i]
+			if state_manager.current_state == RollStateManager.MatchState.LOBBY:
+				players[i].respawn(spawn_spots[i])
+				players[i].freeze = true
+
+func _update_arena_ui() -> void:
+	if current_arena and ui_arena_title_label and ui_arena_desc_label:
+		ui_arena_title_label.text = "★ ARENA: ◄ %s ► ★   [Taste T oder A zum Wechseln]" % current_arena.arena_name
+		ui_arena_desc_label.text = current_arena.arena_description
 
 func start_match_from_lobby() -> void:
 	var active_ids = _get_active_player_ids()
@@ -328,10 +362,15 @@ func start_match_from_lobby() -> void:
 	ui_lobby_panel.visible = false
 	ui_hud_container.visible = true
 	
-	# Respawnen und physikalisch einfrieren für Warmup Countdown
-	for p in players:
+	if current_arena:
+		current_arena.reset_arena()
+	
+	var spawn_spots = current_arena.get_spawn_positions(players.size()) if current_arena else []
+	for i in range(players.size()):
+		var p = players[i]
 		if p.control_type != PlayerBall.ControlType.OFF:
-			p.respawn(p.initial_spawn_point)
+			var spot = spawn_spots[i] if i < spawn_spots.size() else p.initial_spawn_point
+			p.respawn(spot)
 			p.freeze = true
 	
 	state_manager.start_match(active_ids)
@@ -342,11 +381,17 @@ func return_to_lobby() -> void:
 	state_manager.enter_lobby(_get_active_player_ids())
 	ui_lobby_panel.visible = true
 	_update_lobby_ui()
+	_update_arena_ui()
 
 func restart_game() -> void:
-	for p in players:
+	if current_arena:
+		current_arena.reset_arena()
+	var spawn_spots = current_arena.get_spawn_positions(players.size()) if current_arena else []
+	for i in range(players.size()):
+		var p = players[i]
 		if p.control_type != PlayerBall.ControlType.OFF:
-			p.respawn(p.initial_spawn_point)
+			var spot = spawn_spots[i] if i < spawn_spots.size() else p.initial_spawn_point
+			p.respawn(spot)
 			p.freeze = true
 	state_manager.reset_match()
 
@@ -360,6 +405,9 @@ func _get_active_player_ids() -> Array:
 func _process(delta: float) -> void:
 	if state_manager:
 		state_manager.update_logic(delta)
+	
+	if current_arena:
+		current_arena.update_arena(delta, players)
 	
 	if state_manager.current_state == RollStateManager.MatchState.WARMUP:
 		var sec = int(ceil(state_manager.warmup_timer))

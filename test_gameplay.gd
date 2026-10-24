@@ -6,6 +6,10 @@ const PlayerBall = preload("res://scripts/player_ball.gd")
 const MousetrapHazard = preload("res://scripts/mousetrap.gd")
 const SharedArenaCamera = preload("res://scripts/shared_camera.gd")
 const MainRollGame = preload("res://scenes/main.gd")
+const BaseArena = preload("res://scripts/arenas/base_arena.gd")
+const ClassicRingArena = preload("res://scripts/arenas/classic_ring.gd")
+const DizzySpinnerArena = preload("res://scripts/arenas/dizzy_spinner.gd")
+const WobblySeesawArena = preload("res://scripts/arenas/wobbly_seesaw.gd")
 
 func _init() -> void:
 	print("\n--- Running Headless Godot 4 Unit & Gameplay Tests for Roll & Rumble 3D ---")
@@ -16,6 +20,7 @@ func _init() -> void:
 	success = success and _test_player_ball()
 	success = success and _test_mousetrap()
 	success = success and _test_shared_camera()
+	success = success and _test_arenas()
 	success = success and _test_main_scene()
 	
 	if success:
@@ -145,8 +150,43 @@ func _test_shared_camera() -> bool:
 	print("  -> SharedArenaCamera OK.")
 	return true
 
+func _test_arenas() -> bool:
+	print("[6/7] Testing Phase 2 dynamic arenas (Classic, Spinner, Seesaw)...")
+	# 1. ClassicRingArena
+	var classic = ClassicRingArena.new()
+	root.add_child(classic)
+	classic._ready()
+	assert(classic.arena_name == "CLASSIC RING", "Classic ring name mismatch")
+	assert(classic.traps.size() == 4, "Classic ring should have 4 traps")
+	classic.queue_free()
+	
+	# 2. DizzySpinnerArena
+	var spinner = DizzySpinnerArena.new()
+	root.add_child(spinner)
+	spinner._ready()
+	assert(spinner.arena_name == "DIZZY SPINNER", "Spinner name mismatch")
+	assert(spinner.inner_spinner != null, "Spinner must have inner_spinner body")
+	spinner.update_arena(0.1)
+	assert(absf(spinner.current_omega) > 0.0, "Spinner should calculate non-zero omega on update")
+	spinner.queue_free()
+	
+	# 3. WobblySeesawArena
+	var seesaw = WobblySeesawArena.new()
+	root.add_child(seesaw)
+	seesaw._ready()
+	assert(seesaw.arena_name == "WOBBLY SEESAW", "Seesaw name mismatch")
+	assert(seesaw.tilting_platform != null, "Seesaw must have tilting_platform body")
+	var dummy_player = Node3D.new()
+	dummy_player.position = Vector3(5.0, 0.0, 5.0)
+	root.add_child(dummy_player)
+	seesaw.update_arena(0.1, [dummy_player])
+	dummy_player.queue_free()
+	seesaw.queue_free()
+	print("  -> Dynamic Arenas OK.")
+	return true
+
 func _test_main_scene() -> bool:
-	print("[6/6] Testing MainRollGame full orchestration...")
+	print("[7/7] Testing MainRollGame full orchestration...")
 	var main_game = MainRollGame.new()
 	root.add_child(main_game)
 	main_game._ready()
@@ -155,6 +195,15 @@ func _test_main_scene() -> bool:
 	assert(main_game.player2 != null, "Player 2 should be instantiated")
 	assert(main_game.camera != null, "Camera should be instantiated")
 	assert(main_game.player2.is_bot, "Player 2 should default to AI bot for single-player")
+	
+	# Arena-Auswahl im Lobby-Modus testen
+	assert(main_game.current_arena is ClassicRingArena, "Default arena should be ClassicRingArena")
+	main_game.cycle_arena()
+	assert(main_game.current_arena is DizzySpinnerArena, "Arena should cycle to DizzySpinnerArena")
+	main_game.cycle_arena()
+	assert(main_game.current_arena is WobblySeesawArena, "Arena should cycle to WobblySeesawArena")
+	main_game.cycle_arena()
+	assert(main_game.current_arena is ClassicRingArena, "Arena should cycle back to ClassicRingArena")
 	
 	# Bot Toggle testen
 	main_game.toggle_p2_bot()
@@ -171,5 +220,5 @@ func _test_main_scene() -> bool:
 	
 	main_game._process(0.016)
 	main_game.queue_free()
-	print("  -> MainRollGame & 4-Player Lobby OK.")
+	print("  -> MainRollGame & 4-Player Lobby & Arena Switching OK.")
 	return true
