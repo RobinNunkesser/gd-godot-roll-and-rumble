@@ -3,12 +3,30 @@ extends RigidBody3D
 
 const RollConfig = preload("res://scripts/config.gd")
 
+enum ControlType {
+	OFF,
+	HUMAN_KB1,
+	HUMAN_KB2,
+	GAMEPAD_0,
+	GAMEPAD_1,
+	GAMEPAD_2,
+	GAMEPAD_3,
+	AI_BOT
+}
+
 @export var player_id: int = 1
 @export var ball_color: Color = Color(0.9, 0.2, 0.2)
-@export var is_bot: bool = false
+@export var control_type: ControlType = ControlType.HUMAN_KB1
 @export var bot_difficulty: float = 1.0
 
+var is_bot: bool:
+	get:
+		return control_type == ControlType.AI_BOT
+	set(val):
+		control_type = ControlType.AI_BOT if val else ControlType.HUMAN_KB1
+
 var target_opponent: Node3D = null
+var potential_targets: Array = []
 var is_active: bool = true
 var boost_cooldown_timer: float = 0.0
 var last_hit_by_id: int = 0
@@ -130,6 +148,32 @@ func _physics_process(delta: float) -> void:
 	_clamp_speed()
 	_check_out_of_bounds()
 
+func _get_active_target() -> Node3D:
+	if not potential_targets.is_empty():
+		var my_pos = global_position if is_inside_tree() else position
+		var best_target: Node3D = null
+		var min_dist: float = 99999.0
+		for t in potential_targets:
+			if is_instance_valid(t) and t != self:
+				var is_tgt_active = true
+				if "is_active" in t:
+					is_tgt_active = t.is_active
+				if is_tgt_active:
+					var t_pos = t.global_position if (is_inside_tree() and t.is_inside_tree()) else t.position
+					var d = my_pos.distance_to(t_pos)
+					if d < min_dist:
+						min_dist = d
+						best_target = t
+		if best_target:
+			return best_target
+	if is_instance_valid(target_opponent):
+		var is_tgt_active = true
+		if "is_active" in target_opponent:
+			is_tgt_active = target_opponent.is_active
+		if is_tgt_active:
+			return target_opponent
+	return null
+
 func _handle_bot_ai(_delta: float) -> void:
 	var my_pos = global_position if is_inside_tree() else position
 	var dist_from_center = Vector2(my_pos.x, my_pos.z).length()
@@ -141,9 +185,10 @@ func _handle_bot_ai(_delta: float) -> void:
 		var to_center = -Vector2(my_pos.x, my_pos.z).normalized()
 		steer_vec = to_center * 1.5
 	else:
-		# 2. Gegner anvisieren (Seek & Ram)
-		if is_instance_valid(target_opponent):
-			var opp_pos = target_opponent.global_position if (is_inside_tree() and target_opponent.is_inside_tree()) else target_opponent.position
+		# 2. Nächsten aktiven Gegner anvisieren (Seek & Ram)
+		var current_target = _get_active_target()
+		if current_target:
+			var opp_pos = current_target.global_position if (is_inside_tree() and current_target.is_inside_tree()) else current_target.position
 			var to_opp = Vector2(opp_pos.x - my_pos.x, opp_pos.z - my_pos.z)
 			var opp_dist = to_opp.length()
 			
@@ -168,17 +213,44 @@ func _handle_bot_ai(_delta: float) -> void:
 			_eyes_pivot.rotation.y = atan2(-move_dir.x, -move_dir.z)
 
 func _handle_input(_delta: float) -> void:
-	var prefix = "p%d_" % player_id
-	var input_vec = Vector2.ZERO
+	if control_type == ControlType.OFF or control_type == ControlType.AI_BOT:
+		return
 	
-	if Input.is_action_pressed(prefix + "left"):
-		input_vec.x -= 1.0
-	if Input.is_action_pressed(prefix + "right"):
-		input_vec.x += 1.0
-	if Input.is_action_pressed(prefix + "up"):
-		input_vec.y -= 1.0
-	if Input.is_action_pressed(prefix + "down"):
-		input_vec.y += 1.0
+	var input_vec = Vector2.ZERO
+	var boost_pressed = false
+	
+	match control_type:
+		ControlType.HUMAN_KB1:
+			if Input.is_action_pressed("p1_left") or Input.is_key_pressed(KEY_A):
+				input_vec.x -= 1.0
+			if Input.is_action_pressed("p1_right") or Input.is_key_pressed(KEY_D):
+				input_vec.x += 1.0
+			if Input.is_action_pressed("p1_up") or Input.is_key_pressed(KEY_W):
+				input_vec.y -= 1.0
+			if Input.is_action_pressed("p1_down") or Input.is_key_pressed(KEY_S):
+				input_vec.y += 1.0
+			boost_pressed = Input.is_action_just_pressed("p1_boost") or Input.is_key_pressed(KEY_SPACE)
+			
+		ControlType.HUMAN_KB2:
+			if Input.is_action_pressed("p2_left") or Input.is_key_pressed(KEY_LEFT):
+				input_vec.x -= 1.0
+			if Input.is_action_pressed("p2_right") or Input.is_key_pressed(KEY_RIGHT):
+				input_vec.x += 1.0
+			if Input.is_action_pressed("p2_up") or Input.is_key_pressed(KEY_UP):
+				input_vec.y -= 1.0
+			if Input.is_action_pressed("p2_down") or Input.is_key_pressed(KEY_DOWN):
+				input_vec.y += 1.0
+			boost_pressed = Input.is_action_just_pressed("p2_boost") or Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_KP_ENTER)
+			
+		ControlType.GAMEPAD_0, ControlType.GAMEPAD_1, ControlType.GAMEPAD_2, ControlType.GAMEPAD_3:
+			var dev = int(control_type) - int(ControlType.GAMEPAD_0)
+			var raw_x = Input.get_joy_axis(dev, JOY_AXIS_LEFT_X)
+			var raw_y = Input.get_joy_axis(dev, JOY_AXIS_LEFT_Y)
+			if absf(raw_x) > 0.2:
+				input_vec.x = raw_x
+			if absf(raw_y) > 0.2:
+				input_vec.y = raw_y
+			boost_pressed = Input.is_joy_button_pressed(dev, JOY_BUTTON_A) or Input.is_joy_button_pressed(dev, JOY_BUTTON_RIGHT_SHOULDER)
 	
 	if input_vec.length_squared() > 0.01:
 		input_vec = input_vec.normalized()
@@ -189,8 +261,23 @@ func _handle_input(_delta: float) -> void:
 		if _eyes_pivot:
 			_eyes_pivot.rotation.y = atan2(-move_dir.x, -move_dir.z)
 	
-	if Input.is_action_just_pressed(prefix + "boost") and boost_cooldown_timer <= 0.0:
+	if boost_pressed and boost_cooldown_timer <= 0.0:
 		trigger_boost(input_vec)
+
+func set_control_type(new_type: ControlType) -> void:
+	control_type = new_type
+	if control_type == ControlType.OFF:
+		is_active = false
+		visible = false
+		freeze = true
+		collision_layer = 0
+		collision_mask = 0
+	else:
+		is_active = true
+		visible = true
+		freeze = false
+		collision_layer = 1
+		collision_mask = 1
 
 func trigger_boost(input_vec: Vector2) -> void:
 	boost_cooldown_timer = RollConfig.BOOST_COOLDOWN

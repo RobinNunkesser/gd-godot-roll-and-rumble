@@ -6,6 +6,7 @@ const RollConfig = preload("res://scripts/config.gd")
 ## State Machine & Score Manager für Roll & Rumble 3D
 
 enum MatchState {
+	LOBBY,
 	WARMUP,
 	PLAYING,
 	SUDDEN_DEATH,
@@ -18,23 +19,40 @@ signal timer_updated(time_remaining: float)
 signal player_knocked_out(victim_id: int, kicker_id: int)
 signal match_finished(winner_id: int)
 
-var current_state: MatchState = MatchState.WARMUP
+var current_state: MatchState = MatchState.LOBBY
 var time_remaining: float = RollConfig.MATCH_DURATION_SECONDS
 var warmup_timer: float = RollConfig.WARMUP_DURATION_SECONDS
 var scores: Dictionary = {1: 0, 2: 0}
+var active_players: Array = [1, 2]
 
-func reset_match(duration: float = RollConfig.MATCH_DURATION_SECONDS) -> void:
-	scores = {1: 0, 2: 0}
+func enter_lobby(players: Array = [1, 2]) -> void:
+	active_players = players.duplicate()
+	scores.clear()
+	for pid in active_players:
+		scores[pid] = 0
+		score_updated.emit(pid, 0)
+	current_state = MatchState.LOBBY
+	state_changed.emit(current_state)
+
+func start_match(players: Array = active_players, duration: float = RollConfig.MATCH_DURATION_SECONDS) -> void:
+	active_players = players.duplicate()
+	scores.clear()
+	for pid in active_players:
+		scores[pid] = 0
+		score_updated.emit(pid, 0)
 	time_remaining = duration
 	warmup_timer = RollConfig.WARMUP_DURATION_SECONDS
 	current_state = MatchState.WARMUP
 	state_changed.emit(current_state)
-	score_updated.emit(1, 0)
-	score_updated.emit(2, 0)
 	timer_updated.emit(time_remaining)
+
+func reset_match(duration: float = RollConfig.MATCH_DURATION_SECONDS) -> void:
+	start_match(active_players, duration)
 
 func update_logic(delta: float) -> void:
 	match current_state:
+		MatchState.LOBBY:
+			pass
 		MatchState.WARMUP:
 			warmup_timer -= delta
 			if warmup_timer <= 0.0:
@@ -75,7 +93,16 @@ func record_player_fall(victim_id: int, last_hitter_id: int = 0) -> void:
 		match_finished.emit(get_winner())
 
 func _handle_timer_expiry() -> void:
-	if scores[1] == scores[2]:
+	var best_score = -1
+	var leaders: Array = []
+	for pid in scores.keys():
+		if scores[pid] > best_score:
+			best_score = scores[pid]
+			leaders = [pid]
+		elif scores[pid] == best_score:
+			leaders.append(pid)
+	
+	if leaders.size() > 1:
 		current_state = MatchState.SUDDEN_DEATH
 		state_changed.emit(current_state)
 	else:
@@ -84,8 +111,14 @@ func _handle_timer_expiry() -> void:
 		match_finished.emit(get_winner())
 
 func get_winner() -> int:
-	if scores[1] > scores[2]:
-		return 1
-	elif scores[2] > scores[1]:
-		return 2
-	return 0 # Gleichstand
+	var best_score = -1
+	var winner_id = 0
+	var is_draw = false
+	for pid in scores.keys():
+		if scores[pid] > best_score:
+			best_score = scores[pid]
+			winner_id = pid
+			is_draw = false
+		elif scores[pid] == best_score:
+			is_draw = true
+	return 0 if is_draw else winner_id

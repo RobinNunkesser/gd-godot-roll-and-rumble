@@ -162,7 +162,14 @@ func _test_main_scene() -> bool:
 	main_game.toggle_p2_bot()
 	assert(main_game.player2.is_bot, "Player 2 should toggle back to AI bot")
 	
+	# Lobby Slot Cycling & Start Match
+	assert(main_game.state_manager.current_state == RollStateManager.MatchState.LOBBY, "Initial state should be LOBBY")
+	main_game.cycle_player_slot(2) # Player 3 cycle
+	assert(main_game.player3.control_type == PlayerBall.ControlType.HUMAN_KB1, "P3 should cycle from OFF to HUMAN_KB1")
+	main_game.start_match_from_lobby()
+	assert(main_game.state_manager.current_state == RollStateManager.MatchState.WARMUP, "State should be WARMUP after start")
+	
 	main_game._process(0.016)
 	main_game.queue_free()
-	print("  -> MainRollGame OK.")
+	print("  -> MainRollGame & 4-Player Lobby OK.")
 	return true
