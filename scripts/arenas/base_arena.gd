@@ -6,7 +6,9 @@ const RollConfig = preload("res://scripts/config.gd")
 enum ArenaType {
 	CLASSIC_RING,
 	DIZZY_SPINNER,
-	WOBBLY_SEESAW
+	WOBBLY_SEESAW,
+	BUMPER_PINBALL,
+	ICE_SLICK
 }
 
 var arena_name: String = "Base Arena"
@@ -29,6 +31,7 @@ func update_arena(_delta: float, _players: Array = []) -> void:
 const TEXTURE_WOOD_PATH = "res://assets/textures/wood_deck.jpg"
 const TEXTURE_HAZARD_PATH = "res://assets/textures/hazard_rotor.jpg"
 const TEXTURE_METAL_PATH = "res://assets/textures/metal_rim.jpg"
+const TEXTURE_ICE_PATH = "res://assets/textures/ice_slick.jpg"
 
 ## Universelle Material- & Textur-Factory
 ## Garantiert, dass spätere PBR-Texturen, Normal-Maps und Shader-Effekte
@@ -81,6 +84,27 @@ static func get_surface_material(mat_type: String = "wood", tint: Color = Color.
 			mat.albedo_color = Color(0.9, 0.5, 0.5) * tint # Mahagoni / Rubin-gebeiztes Holz
 			mat.metallic = 0.25
 			mat.roughness = 0.35
+		"ice":
+			if ResourceLoader.exists(TEXTURE_ICE_PATH):
+				mat.albedo_texture = load(TEXTURE_ICE_PATH)
+				mat.uv1_scale = Vector3(3.0, 3.0, 3.0)
+			mat.albedo_color = Color(0.85, 0.95, 1.0) * tint
+			mat.roughness = 0.04
+			mat.metallic = 0.15
+			mat.clearcoat_enabled = true
+			mat.clearcoat = 1.0
+			mat.clearcoat_roughness = 0.05
+		"bumper_ring":
+			mat.albedo_color = Color(0.95, 0.2, 0.6) * tint # Neon-Magenta
+			mat.metallic = 0.4
+			mat.roughness = 0.2
+			mat.emission_enabled = true
+			mat.emission = Color(1.0, 0.15, 0.7)
+			mat.emission_energy_multiplier = 1.5
+		"bumper_cap":
+			mat.albedo_color = Color(0.95, 0.85, 0.2) * tint # Golden Chrome
+			mat.metallic = 0.9
+			mat.roughness = 0.15
 		_:
 			mat.albedo_color = tint
 	return mat

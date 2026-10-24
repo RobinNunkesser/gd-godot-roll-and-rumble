@@ -10,6 +10,9 @@ const BaseArena = preload("res://scripts/arenas/base_arena.gd")
 const ClassicRingArena = preload("res://scripts/arenas/classic_ring.gd")
 const DizzySpinnerArena = preload("res://scripts/arenas/dizzy_spinner.gd")
 const WobblySeesawArena = preload("res://scripts/arenas/wobbly_seesaw.gd")
+const BumperPinballArena = preload("res://scripts/arenas/bumper_pinball.gd")
+const IceSlickArena = preload("res://scripts/arenas/ice_slick.gd")
+const PinballBumper = preload("res://scripts/pinball_bumper.gd")
 const RollSoundManager = preload("res://scripts/sound_manager.gd")
 const RollImpactParticles = preload("res://scripts/impact_particles.gd")
 
@@ -192,7 +195,32 @@ func _test_arenas() -> bool:
 	seesaw.update_arena(0.1, [dummy_player])
 	dummy_player.queue_free()
 	seesaw.queue_free()
-	print("  -> Dynamic Arenas OK.")
+	
+	# 4. BumperPinballArena & PinballBumper
+	var pinball = BumperPinballArena.new()
+	root.add_child(pinball)
+	pinball._ready()
+	assert(pinball.arena_name == "PINBALL BUMPERS", "Pinball arena name mismatch")
+	assert(pinball.bumpers.size() == 5, "Pinball should have 5 bumpers")
+	
+	var bumper = pinball.bumpers[0]
+	var test_ball = PlayerBall.new()
+	root.add_child(test_ball)
+	test_ball._ready()
+	bumper._on_body_entered(test_ball)
+	assert(bumper._squash_timer > 0.0, "Bumper squash timer should activate on hit")
+	test_ball.queue_free()
+	pinball.queue_free()
+	
+	# 5. IceSlickArena
+	var ice = IceSlickArena.new()
+	root.add_child(ice)
+	ice._ready()
+	assert(ice.arena_name == "ICE SLICK", "Ice slick name mismatch")
+	assert(ice.ice_pillars.size() == 4, "Ice arena should have 4 pillars")
+	ice.queue_free()
+	
+	print("  -> Dynamic Arenas (5 Total: Classic, Spinner, Seesaw, Pinball, Ice) OK.")
 	return true
 
 func _test_main_scene() -> bool:
@@ -206,12 +234,16 @@ func _test_main_scene() -> bool:
 	assert(main_game.camera != null, "Camera should be instantiated")
 	assert(main_game.player2.is_bot, "Player 2 should default to AI bot for single-player")
 	
-	# Arena-Auswahl im Lobby-Modus testen
+	# Arena-Auswahl im Lobby-Modus (5 Arenen zyklisch durchschalten)
 	assert(main_game.current_arena is ClassicRingArena, "Default arena should be ClassicRingArena")
 	main_game.cycle_arena()
 	assert(main_game.current_arena is DizzySpinnerArena, "Arena should cycle to DizzySpinnerArena")
 	main_game.cycle_arena()
 	assert(main_game.current_arena is WobblySeesawArena, "Arena should cycle to WobblySeesawArena")
+	main_game.cycle_arena()
+	assert(main_game.current_arena is BumperPinballArena, "Arena should cycle to BumperPinballArena")
+	main_game.cycle_arena()
+	assert(main_game.current_arena is IceSlickArena, "Arena should cycle to IceSlickArena")
 	main_game.cycle_arena()
 	assert(main_game.current_arena is ClassicRingArena, "Arena should cycle back to ClassicRingArena")
 	

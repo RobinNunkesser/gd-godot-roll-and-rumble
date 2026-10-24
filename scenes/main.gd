@@ -10,6 +10,8 @@ const BaseArena = preload("res://scripts/arenas/base_arena.gd")
 const ClassicRingArena = preload("res://scripts/arenas/classic_ring.gd")
 const DizzySpinnerArena = preload("res://scripts/arenas/dizzy_spinner.gd")
 const WobblySeesawArena = preload("res://scripts/arenas/wobbly_seesaw.gd")
+const BumperPinballArena = preload("res://scripts/arenas/bumper_pinball.gd")
+const IceSlickArena = preload("res://scripts/arenas/ice_slick.gd")
 const RollSoundManager = preload("res://scripts/sound_manager.gd")
 const RollImpactParticles = preload("res://scripts/impact_particles.gd")
 
@@ -372,6 +374,10 @@ func _load_arena(type: BaseArena.ArenaType) -> void:
 			current_arena = DizzySpinnerArena.new()
 		BaseArena.ArenaType.WOBBLY_SEESAW:
 			current_arena = WobblySeesawArena.new()
+		BaseArena.ArenaType.BUMPER_PINBALL:
+			current_arena = BumperPinballArena.new()
+		BaseArena.ArenaType.ICE_SLICK:
+			current_arena = IceSlickArena.new()
 		_:
 			current_arena = ClassicRingArena.new()
 	
@@ -383,6 +389,12 @@ func _load_arena(type: BaseArena.ArenaType) -> void:
 		for trap in current_arena.traps:
 			if is_instance_valid(trap) and trap.has_signal("triggered"):
 				trap.triggered.connect(_on_trap_triggered)
+	
+	# Juiciness: Flipper-Bumper-Impulse
+	if "bumpers" in current_arena:
+		for b in current_arena.bumpers:
+			if is_instance_valid(b) and b.has_signal("bumper_hit"):
+				b.bumper_hit.connect(_on_bumper_hit)
 	
 	# Spawn-Punkte für Spieler aktualisieren
 	var spawn_spots = current_arena.get_spawn_positions(players.size())
@@ -539,6 +551,15 @@ func _on_trap_triggered(victim: PlayerBall) -> void:
 	if impact_particles and is_instance_valid(victim):
 		var vpos = victim.global_position if victim.is_inside_tree() else victim.position
 		impact_particles.spawn_sparks(vpos, 8.0)
+
+func _on_bumper_hit(_ball: PlayerBall, hit_pos: Vector3) -> void:
+	if camera:
+		camera.add_trauma(0.35)
+	if sound_manager:
+		sound_manager.play_impact(8.5)
+	if impact_particles:
+		impact_particles.spawn_sparks(hit_pos, 7.0)
+
 
 
 
