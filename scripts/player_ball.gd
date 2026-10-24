@@ -40,6 +40,7 @@ var _pending_teleport: bool = false
 var _teleport_target: Vector3 = Vector3.ZERO
 
 signal fell_off(player_id: int, last_hitter_id: int)
+signal impact_occurred(force: float, pos: Vector3)
 
 func _ready() -> void:
 	initial_spawn_point = global_position if is_inside_tree() else position
@@ -322,3 +323,6 @@ func _on_body_entered(body: Node) -> void:
 		# Gegenseitiger Rammkontakt: Speichere Angreifer für 1.5s
 		last_hit_by_id = body.player_id
 		last_hit_timer = 1.5
+		var rel_force = (linear_velocity - body.linear_velocity).length()
+		impact_occurred.emit(rel_force, global_position if is_inside_tree() else position)
+

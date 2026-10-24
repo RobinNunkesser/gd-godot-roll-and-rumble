@@ -55,7 +55,27 @@ func _ready() -> void:
 	state_manager.enter_lobby(_get_active_player_ids())
 
 func _build_scene() -> void:
-	# 1. Umwelt & Licht
+	# 1. Umwelt, Skybox & Lighting (Global für alle Arenen)
+	var env = Environment.new()
+	env.background_mode = Environment.BG_SKY
+	var sky = Sky.new()
+	var proc_sky = ProceduralSkyMaterial.new()
+	proc_sky.sky_top_color = Color(0.2, 0.35, 0.6)
+	proc_sky.sky_horizon_color = Color(0.65, 0.72, 0.82)
+	proc_sky.ground_bottom_color = Color(0.12, 0.14, 0.18)
+	proc_sky.ground_horizon_color = Color(0.35, 0.4, 0.48)
+	sky.sky_material = proc_sky
+	env.sky = sky
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.glow_enabled = true
+	env.glow_intensity = 0.4
+	env.glow_bloom = 0.15
+	
+	var world_env = WorldEnvironment.new()
+	world_env.name = "WorldEnvironment"
+	world_env.environment = env
+	add_child(world_env)
+	
 	var light = DirectionalLight3D.new()
 	light.name = "SunLight"
 	light.position = Vector3(10, 20, 10)
@@ -80,6 +100,7 @@ func _build_scene() -> void:
 		p.position = cfg["pos"]
 		p.set_control_type(cfg["ctrl"])
 		p.fell_off.connect(_on_player_fell_off)
+		p.impact_occurred.connect(_on_ball_impact)
 		add_child(p)
 		players.append(p)
 	
@@ -339,6 +360,12 @@ func _load_arena(type: BaseArena.ArenaType) -> void:
 	current_arena.name = "ActiveArena"
 	add_child(current_arena)
 	
+	# Juiciness: Fallen-Auslösung erzeugt Kamera-Trauma
+	if "traps" in current_arena:
+		for trap in current_arena.traps:
+			if is_instance_valid(trap) and trap.has_signal("triggered"):
+				trap.triggered.connect(_on_trap_triggered)
+	
 	# Spawn-Punkte für Spieler aktualisieren
 	var spawn_spots = current_arena.get_spawn_positions(players.size())
 	for i in range(players.size()):
@@ -469,5 +496,14 @@ func _on_timer_updated(time_remaining: float) -> void:
 
 func _on_match_finished(_winner_id: int) -> void:
 	pass
+
+func _on_ball_impact(force: float, _pos: Vector3) -> void:
+	if camera:
+		camera.add_trauma(clampf(force * 0.04, 0.1, 0.55))
+
+func _on_trap_triggered(_victim: PlayerBall) -> void:
+	if camera:
+		camera.add_trauma(0.5)
+
 
 

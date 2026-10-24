@@ -9,6 +9,12 @@ const PlayerBall = preload("res://scripts/player_ball.gd")
 
 @export var target_nodes: Array = []
 
+var trauma: float = 0.0
+var max_shake_offset: float = 0.4
+
+func add_trauma(amount: float) -> void:
+	trauma = clampf(trauma + amount, 0.0, 1.0)
+
 func _process(delta: float) -> void:
 	update_camera(delta)
 
@@ -44,6 +50,17 @@ func update_camera(delta: float) -> void:
 	var desired_height = lerpf(RollConfig.CAMERA_BASE_HEIGHT, RollConfig.CAMERA_BASE_HEIGHT + 3.5, dist_factor)
 	
 	var desired_position = centroid + Vector3(0.0, desired_height, desired_distance)
+	
+	# Juiciness: Trauma-basierter Screenshake (nichtlinear: Trauma^2)
+	if trauma > 0.0:
+		var shake = trauma * trauma
+		var offset = Vector3(
+			(randf() * 2.0 - 1.0) * max_shake_offset * shake,
+			(randf() * 2.0 - 1.0) * max_shake_offset * shake,
+			0.0
+		)
+		desired_position += offset
+		trauma = maxf(0.0, trauma - delta * 1.8)
 	
 	# 4. Weiche Interpolation (Smoothing)
 	if is_inside_tree():

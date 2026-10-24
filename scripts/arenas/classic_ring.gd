@@ -36,11 +36,7 @@ func _build_platform() -> void:
 	cyl_mesh.bottom_radius = RollConfig.ARENA_RADIUS
 	cyl_mesh.height = RollConfig.ARENA_HEIGHT
 	mesh_inst.mesh = cyl_mesh
-	
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(0.2, 0.45, 0.75)
-	mat.roughness = 0.5
-	mesh_inst.material_override = mat
+	mesh_inst.material_override = get_surface_material("wood")
 	body.add_child(mesh_inst)
 	add_child(body)
 

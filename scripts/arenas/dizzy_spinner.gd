@@ -31,10 +31,7 @@ func _build_outer_ring() -> void:
 	var mid_r = (outer_r + inner_r) * 0.5
 	var arc_len = (TAU * mid_r) / float(num_segments) * 1.08
 	
-	var ring_mat = StandardMaterial3D.new()
-	ring_mat.albedo_color = Color(0.18, 0.24, 0.32)
-	ring_mat.metallic = 0.6
-	ring_mat.roughness = 0.35
+	var ring_mat = get_surface_material("metal_rim")
 	
 	for i in range(num_segments):
 		var angle = (float(i) / float(num_segments)) * TAU
@@ -80,15 +77,11 @@ func _build_inner_spinner() -> void:
 	cyl_mesh.bottom_radius = RollConfig.SPINNER_RADIUS
 	cyl_mesh.height = RollConfig.ARENA_HEIGHT
 	mesh_inst.mesh = cyl_mesh
-	
-	var spin_mat = StandardMaterial3D.new()
-	spin_mat.albedo_color = Color(0.95, 0.45, 0.15) # Glühendes Rotor-Orange
-	spin_mat.metallic = 0.5
-	spin_mat.roughness = 0.3
-	mesh_inst.material_override = spin_mat
+	mesh_inst.material_override = get_surface_material("hazard_rotor")
 	inner_spinner.add_child(mesh_inst)
 	
 	# 4 rotierende Kontraststreifen für optische Drehwahrnehmung
+	var stripe_mat = get_surface_material("stripe_dark")
 	for i in range(4):
 		var stripe = MeshInstance3D.new()
 		var s_mesh = BoxMesh.new()
@@ -96,9 +89,7 @@ func _build_inner_spinner() -> void:
 		stripe.mesh = s_mesh
 		stripe.position = Vector3(0, RollConfig.ARENA_HEIGHT * 0.5 + 0.02, 0)
 		stripe.rotation_degrees = Vector3(0, i * 45.0, 0)
-		var s_mat = StandardMaterial3D.new()
-		s_mat.albedo_color = Color(0.12, 0.12, 0.15)
-		stripe.material_override = s_mat
+		stripe.material_override = stripe_mat
 		inner_spinner.add_child(stripe)
 		
 	add_child(inner_spinner)

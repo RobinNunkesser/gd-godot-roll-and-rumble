@@ -33,11 +33,7 @@ func _build_base_pillar() -> void:
 	cyl_mesh.bottom_radius = 2.8
 	cyl_mesh.height = 4.0
 	mesh.mesh = cyl_mesh
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(0.2, 0.22, 0.26)
-	mat.metallic = 0.8
-	mat.roughness = 0.3
-	mesh.material_override = mat
+	mesh.material_override = get_surface_material("pivot")
 	base_pillar.add_child(mesh)
 	add_child(base_pillar)
 
@@ -66,12 +62,7 @@ func _build_tilting_platform() -> void:
 	cyl_mesh.height = RollConfig.ARENA_HEIGHT
 	mesh_inst.mesh = cyl_mesh
 	mesh_inst.position = col.position
-	
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(0.68, 0.24, 0.28) # Alarmrot / Kupfer
-	mat.metallic = 0.6
-	mat.roughness = 0.35
-	mesh_inst.material_override = mat
+	mesh_inst.material_override = get_surface_material("seesaw_deck")
 	tilting_platform.add_child(mesh_inst)
 	
 	# Zentraler Drehpunkt-Knauf
@@ -81,10 +72,7 @@ func _build_tilting_platform() -> void:
 	knob_mesh.height = 2.0
 	pivot_knob.mesh = knob_mesh
 	pivot_knob.position = Vector3(0, 0.2, 0)
-	var knob_mat = StandardMaterial3D.new()
-	knob_mat.albedo_color = Color(0.95, 0.82, 0.25)
-	knob_mat.metallic = 0.7
-	pivot_knob.material_override = knob_mat
+	pivot_knob.material_override = get_surface_material("accent_knob")
 	tilting_platform.add_child(pivot_knob)
 	
 	add_child(tilting_platform)

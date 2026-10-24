@@ -144,10 +144,17 @@ func _test_shared_camera() -> bool:
 	cam.update_camera(0.1)
 	assert(cam.position.y > 0.0, "Camera should have elevated height")
 	
+	# Juiciness & Trauma Test
+	assert(cam.trauma == 0.0, "Initial camera trauma should be 0")
+	cam.add_trauma(0.5)
+	assert(cam.trauma == 0.5, "Trauma should be 0.5 after add_trauma")
+	cam.update_camera(0.1)
+	assert(cam.trauma < 0.5, "Trauma should decay over time")
+	
 	cam.queue_free()
 	b1.queue_free()
 	b2.queue_free()
-	print("  -> SharedArenaCamera OK.")
+	print("  -> SharedArenaCamera & Trauma Shake OK.")
 	return true
 
 func _test_arenas() -> bool:
