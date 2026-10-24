@@ -26,6 +26,10 @@ func reset_arena() -> void:
 func update_arena(_delta: float, _players: Array = []) -> void:
 	pass
 
+const TEXTURE_WOOD_PATH = "res://assets/textures/wood_deck.jpg"
+const TEXTURE_HAZARD_PATH = "res://assets/textures/hazard_rotor.jpg"
+const TEXTURE_METAL_PATH = "res://assets/textures/metal_rim.jpg"
+
 ## Universelle Material- & Textur-Factory
 ## Garantiert, dass spätere PBR-Texturen, Normal-Maps und Shader-Effekte
 ## an genau einer Stelle definiert werden und sofort auf alle Arenen wirken.
@@ -33,30 +37,49 @@ static func get_surface_material(mat_type: String = "wood", tint: Color = Color.
 	var mat = StandardMaterial3D.new()
 	match mat_type:
 		"wood":
-			mat.albedo_color = Color(0.22, 0.42, 0.72) * tint
-			mat.roughness = 0.5
-		"metal_rim":
-			mat.albedo_color = Color(0.18, 0.24, 0.32) * tint
-			mat.metallic = 0.65
+			if ResourceLoader.exists(TEXTURE_WOOD_PATH):
+				mat.albedo_texture = load(TEXTURE_WOOD_PATH)
+				mat.uv1_scale = Vector3(4.0, 4.0, 4.0)
+			mat.albedo_color = Color(1.0, 0.95, 0.9) * tint
 			mat.roughness = 0.35
+			mat.metallic = 0.1
+		"metal_rim":
+			if ResourceLoader.exists(TEXTURE_METAL_PATH):
+				mat.albedo_texture = load(TEXTURE_METAL_PATH)
+				mat.uv1_scale = Vector3(2.0, 2.0, 2.0)
+			mat.albedo_color = Color(0.85, 0.9, 0.95) * tint
+			mat.metallic = 0.75
+			mat.roughness = 0.3
 		"hazard_rotor":
-			mat.albedo_color = Color(0.95, 0.45, 0.15) * tint
+			if ResourceLoader.exists(TEXTURE_HAZARD_PATH):
+				mat.albedo_texture = load(TEXTURE_HAZARD_PATH)
+				mat.uv1_scale = Vector3(3.0, 3.0, 3.0)
+			mat.albedo_color = Color(1.0, 0.9, 0.8) * tint
 			mat.metallic = 0.5
-			mat.roughness = 0.3
-		"pivot":
-			mat.albedo_color = Color(0.2, 0.22, 0.26) * tint
-			mat.metallic = 0.8
-			mat.roughness = 0.3
-		"accent_knob":
-			mat.albedo_color = Color(0.95, 0.82, 0.25) * tint
-			mat.metallic = 0.7
 			mat.roughness = 0.25
+			mat.emission_enabled = true
+			mat.emission = Color(0.95, 0.45, 0.1)
+			mat.emission_energy_multiplier = 0.25
+		"pivot":
+			if ResourceLoader.exists(TEXTURE_METAL_PATH):
+				mat.albedo_texture = load(TEXTURE_METAL_PATH)
+				mat.uv1_scale = Vector3(2.0, 2.0, 2.0)
+			mat.albedo_color = Color(0.4, 0.45, 0.5) * tint
+			mat.metallic = 0.85
+			mat.roughness = 0.25
+		"accent_knob":
+			mat.albedo_color = Color(0.98, 0.85, 0.25) * tint
+			mat.metallic = 0.85
+			mat.roughness = 0.2
 		"stripe_dark":
 			mat.albedo_color = Color(0.12, 0.12, 0.15) * tint
 			mat.roughness = 0.7
 		"seesaw_deck":
-			mat.albedo_color = Color(0.68, 0.24, 0.28) * tint
-			mat.metallic = 0.6
+			if ResourceLoader.exists(TEXTURE_WOOD_PATH):
+				mat.albedo_texture = load(TEXTURE_WOOD_PATH)
+				mat.uv1_scale = Vector3(4.0, 4.0, 4.0)
+			mat.albedo_color = Color(0.9, 0.5, 0.5) * tint # Mahagoni / Rubin-gebeiztes Holz
+			mat.metallic = 0.25
 			mat.roughness = 0.35
 		_:
 			mat.albedo_color = tint

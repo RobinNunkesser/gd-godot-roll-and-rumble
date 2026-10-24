@@ -59,12 +59,18 @@ func _build_scene() -> void:
 	var env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	var sky = Sky.new()
-	var proc_sky = ProceduralSkyMaterial.new()
-	proc_sky.sky_top_color = Color(0.2, 0.35, 0.6)
-	proc_sky.sky_horizon_color = Color(0.65, 0.72, 0.82)
-	proc_sky.ground_bottom_color = Color(0.12, 0.14, 0.18)
-	proc_sky.ground_horizon_color = Color(0.35, 0.4, 0.48)
-	sky.sky_material = proc_sky
+	var skybox_path = "res://assets/textures/skybox_celestial.jpg"
+	if ResourceLoader.exists(skybox_path):
+		var pano_mat = PanoramaSkyMaterial.new()
+		pano_mat.panorama = load(skybox_path)
+		sky.sky_material = pano_mat
+	else:
+		var proc_sky = ProceduralSkyMaterial.new()
+		proc_sky.sky_top_color = Color(0.2, 0.35, 0.6)
+		proc_sky.sky_horizon_color = Color(0.65, 0.72, 0.82)
+		proc_sky.ground_bottom_color = Color(0.12, 0.14, 0.18)
+		proc_sky.ground_horizon_color = Color(0.35, 0.4, 0.48)
+		sky.sky_material = proc_sky
 	env.sky = sky
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.glow_enabled = true
