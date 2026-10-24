@@ -41,6 +41,7 @@ var _teleport_target: Vector3 = Vector3.ZERO
 
 signal fell_off(player_id: int, last_hitter_id: int)
 signal impact_occurred(force: float, pos: Vector3)
+signal boost_triggered(pos: Vector3, dir: Vector3)
 
 func _ready() -> void:
 	initial_spawn_point = global_position if is_inside_tree() else position
@@ -289,6 +290,7 @@ func trigger_boost(input_vec: Vector2) -> void:
 		boost_dir = Vector3(linear_velocity.x, 0.0, linear_velocity.z).normalized()
 	
 	apply_central_impulse(boost_dir * RollConfig.BOOST_IMPULSE)
+	boost_triggered.emit(global_position if is_inside_tree() else position, boost_dir)
 
 func _clamp_speed() -> void:
 	var horizontal_vel = Vector3(linear_velocity.x, 0.0, linear_velocity.z)

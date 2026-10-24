@@ -10,6 +10,8 @@ const BaseArena = preload("res://scripts/arenas/base_arena.gd")
 const ClassicRingArena = preload("res://scripts/arenas/classic_ring.gd")
 const DizzySpinnerArena = preload("res://scripts/arenas/dizzy_spinner.gd")
 const WobblySeesawArena = preload("res://scripts/arenas/wobbly_seesaw.gd")
+const RollSoundManager = preload("res://scripts/sound_manager.gd")
+const RollImpactParticles = preload("res://scripts/impact_particles.gd")
 
 func _init() -> void:
 	print("\n--- Running Headless Godot 4 Unit & Gameplay Tests for Roll & Rumble 3D ---")
@@ -22,6 +24,7 @@ func _init() -> void:
 	success = success and _test_shared_camera()
 	success = success and _test_arenas()
 	success = success and _test_main_scene()
+	success = success and _test_juice_systems()
 	
 	if success:
 		print("=== ALL TESTS FOR ROLL & RUMBLE 3D PASSED SUCCESSFULLY! ===\n")
@@ -225,7 +228,37 @@ func _test_main_scene() -> bool:
 	main_game.start_match_from_lobby()
 	assert(main_game.state_manager.current_state == RollStateManager.MatchState.WARMUP, "State should be WARMUP after start")
 	
+	assert(main_game.sound_manager != null, "Sound manager should be instantiated")
+	assert(main_game.impact_particles != null, "Impact particles should be instantiated")
+	
 	main_game._process(0.016)
 	main_game.queue_free()
 	print("  -> MainRollGame & 4-Player Lobby & Arena Switching OK.")
 	return true
+
+func _test_juice_systems() -> bool:
+	print("[8/8] Testing RollSoundManager & RollImpactParticles...")
+	var sm = RollSoundManager.new()
+	root.add_child(sm)
+	sm._ready()
+	assert(sm.stream_bounce != null, "Bounce stream should be synthesized")
+	assert(sm.stream_smash != null, "Smash stream should be synthesized")
+	assert(sm.stream_snap != null, "Snap stream should be synthesized")
+	assert(sm.stream_boost != null, "Boost stream should be synthesized")
+	sm.play_impact(8.5)
+	sm.play_trap_snap()
+	sm.play_boost()
+	sm.play_fall()
+	sm.queue_free()
+	
+	var ip = RollImpactParticles.new()
+	root.add_child(ip)
+	ip._ready()
+	assert(ip._spark_pool.size() == 6, "Spark pool size mismatch")
+	assert(ip._boost_pool.size() == 4, "Boost pool size mismatch")
+	ip.spawn_sparks(Vector3.ZERO, 5.0)
+	ip.spawn_boost_burst(Vector3.ZERO, Vector3.FORWARD)
+	ip.queue_free()
+	print("  -> SoundManager & ImpactParticles OK.")
+	return true
+

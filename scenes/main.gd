@@ -10,10 +10,14 @@ const BaseArena = preload("res://scripts/arenas/base_arena.gd")
 const ClassicRingArena = preload("res://scripts/arenas/classic_ring.gd")
 const DizzySpinnerArena = preload("res://scripts/arenas/dizzy_spinner.gd")
 const WobblySeesawArena = preload("res://scripts/arenas/wobbly_seesaw.gd")
+const RollSoundManager = preload("res://scripts/sound_manager.gd")
+const RollImpactParticles = preload("res://scripts/impact_particles.gd")
 
 var state_manager: RollStateManager
 var current_arena: BaseArena
 var selected_arena_type: BaseArena.ArenaType = BaseArena.ArenaType.CLASSIC_RING
+var sound_manager: RollSoundManager
+var impact_particles: RollImpactParticles
 var player1: PlayerBall
 var player2: PlayerBall
 var player3: PlayerBall
@@ -89,7 +93,14 @@ func _build_scene() -> void:
 	light.shadow_enabled = true
 	add_child(light)
 	
-	# 2. 4 Spieler-Kugeln
+	# 2. Audio & Visual Juice Systems
+	sound_manager = RollSoundManager.new()
+	add_child(sound_manager)
+	
+	impact_particles = RollImpactParticles.new()
+	add_child(impact_particles)
+	
+	# 3. 4 Spieler-Kugeln
 	var p_configs = [
 		{"id": 1, "name": "Player1_Red", "color": Color(0.95, 0.25, 0.25), "pos": Vector3(-5.0, RollConfig.BALL_RADIUS + 0.1, 0.0), "ctrl": PlayerBall.ControlType.HUMAN_KB1},
 		{"id": 2, "name": "Player2_Blue", "color": Color(0.2, 0.55, 0.95), "pos": Vector3(5.0, RollConfig.BALL_RADIUS + 0.1, 0.0), "ctrl": PlayerBall.ControlType.AI_BOT},
@@ -107,6 +118,7 @@ func _build_scene() -> void:
 		p.set_control_type(cfg["ctrl"])
 		p.fell_off.connect(_on_player_fell_off)
 		p.impact_occurred.connect(_on_ball_impact)
+		p.boost_triggered.connect(_on_ball_boost)
 		add_child(p)
 		players.append(p)
 	
@@ -120,7 +132,7 @@ func _build_scene() -> void:
 	player1.target_opponent = player2
 	player2.target_opponent = player1
 	
-	# 3. Shared Camera
+	# 4. Shared Camera
 	camera = SharedArenaCamera.new()
 	camera.name = "SharedCamera"
 	camera.position = Vector3(0, RollConfig.CAMERA_BASE_HEIGHT, RollConfig.CAMERA_MIN_DISTANCE)
@@ -128,7 +140,7 @@ func _build_scene() -> void:
 	camera.current = true
 	add_child(camera)
 	
-	# 4. Aktive Arena laden
+	# 5. Aktive Arena laden
 	_load_arena(selected_arena_type)
 
 func _build_ui() -> void:
@@ -453,6 +465,8 @@ func _process(delta: float) -> void:
 		restart_game()
 
 func _on_player_fell_off(victim_id: int, kicker_id: int) -> void:
+	if sound_manager:
+		sound_manager.play_fall()
 	state_manager.record_player_fall(victim_id, kicker_id)
 
 func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
@@ -503,13 +517,29 @@ func _on_timer_updated(time_remaining: float) -> void:
 func _on_match_finished(_winner_id: int) -> void:
 	pass
 
-func _on_ball_impact(force: float, _pos: Vector3) -> void:
+func _on_ball_impact(force: float, pos: Vector3) -> void:
 	if camera:
 		camera.add_trauma(clampf(force * 0.04, 0.1, 0.55))
+	if sound_manager:
+		sound_manager.play_impact(force)
+	if impact_particles:
+		impact_particles.spawn_sparks(pos, force)
 
-func _on_trap_triggered(_victim: PlayerBall) -> void:
+func _on_ball_boost(pos: Vector3, dir: Vector3) -> void:
+	if sound_manager:
+		sound_manager.play_boost()
+	if impact_particles:
+		impact_particles.spawn_boost_burst(pos, dir)
+
+func _on_trap_triggered(victim: PlayerBall) -> void:
 	if camera:
 		camera.add_trauma(0.5)
+	if sound_manager:
+		sound_manager.play_trap_snap()
+	if impact_particles and is_instance_valid(victim):
+		var vpos = victim.global_position if victim.is_inside_tree() else victim.position
+		impact_particles.spawn_sparks(vpos, 8.0)
+
 
 
 
