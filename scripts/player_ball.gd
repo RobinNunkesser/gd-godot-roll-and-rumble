@@ -1,0 +1,171 @@
+class_name PlayerBall
+extends RigidBody3D
+
+const RollConfig = preload("res://scripts/config.gd")
+
+@export var player_id: int = 1
+@export var ball_color: Color = Color(0.9, 0.2, 0.2)
+
+var is_active: bool = true
+var boost_cooldown_timer: float = 0.0
+var last_hit_by_id: int = 0
+var last_hit_timer: float = 0.0
+var respawn_timer: float = 0.0
+var initial_spawn_point: Vector3 = Vector3.ZERO
+
+var _mesh_instance: MeshInstance3D
+var _eyes_pivot: Node3D
+
+signal fell_off(player_id: int, last_hitter_id: int)
+
+func _ready() -> void:
+	initial_spawn_point = global_position if is_inside_tree() else position
+	mass = RollConfig.BALL_MASS
+	
+	# Physik-Material einrichten
+	var phys_mat = PhysicsMaterial.new()
+	phys_mat.bounce = RollConfig.BALL_BOUNCE
+	phys_mat.friction = RollConfig.BALL_FRICTION
+	physics_material_override = phys_mat
+	
+	contact_monitor = true
+	max_contacts_reported = 4
+	if not body_entered.is_connected(_on_body_entered):
+		body_entered.connect(_on_body_entered)
+	
+	_setup_visuals()
+
+func _setup_visuals() -> void:
+	# Prüfen, ob bereits Visuals da sind (z. B. aus Szene)
+	if not has_node("SphereMesh"):
+		_mesh_instance = MeshInstance3D.new()
+		_mesh_instance.name = "SphereMesh"
+		var sphere = SphereMesh.new()
+		sphere.radius = RollConfig.BALL_RADIUS
+		sphere.height = RollConfig.BALL_RADIUS * 2.0
+		
+		var mat = StandardMaterial3D.new()
+		mat.albedo_color = ball_color
+		mat.roughness = 0.25
+		mat.metallic = 0.3
+		_mesh_instance.mesh = sphere
+		_mesh_instance.material_override = mat
+		add_child(_mesh_instance)
+	
+	if not has_node("EyesPivot"):
+		_eyes_pivot = Node3D.new()
+		_eyes_pivot.name = "EyesPivot"
+		add_child(_eyes_pivot)
+		
+		# Zwei Comic-Augen
+		for eye_x in [-0.2, 0.2]:
+			var eye = MeshInstance3D.new()
+			var eye_mesh = SphereMesh.new()
+			eye_mesh.radius = 0.12
+			eye_mesh.height = 0.24
+			eye.mesh = eye_mesh
+			eye.position = Vector3(eye_x, 0.25, -0.48)
+			
+			var eye_mat = StandardMaterial3D.new()
+			eye_mat.albedo_color = Color.WHITE
+			eye.material_override = eye_mat
+			_eyes_pivot.add_child(eye)
+			
+			# Pupille
+			var pupil = MeshInstance3D.new()
+			var pupil_mesh = SphereMesh.new()
+			pupil_mesh.radius = 0.05
+			pupil_mesh.height = 0.10
+			pupil.mesh = pupil_mesh
+			pupil.position = Vector3(0, 0, -0.09)
+			var pupil_mat = StandardMaterial3D.new()
+			pupil_mat.albedo_color = Color.BLACK
+			pupil.material_override = pupil_mat
+			eye.add_child(pupil)
+
+func _physics_process(delta: float) -> void:
+	if not is_active:
+		if respawn_timer > 0.0:
+			respawn_timer -= delta
+			if respawn_timer <= 0.0:
+				respawn()
+		return
+
+	if boost_cooldown_timer > 0.0:
+		boost_cooldown_timer -= delta
+	
+	if last_hit_timer > 0.0:
+		last_hit_timer -= delta
+		if last_hit_timer <= 0.0:
+			last_hit_by_id = 0
+
+	_handle_input(delta)
+	_clamp_speed()
+	_check_out_of_bounds()
+
+func _handle_input(_delta: float) -> void:
+	var prefix = "p%d_" % player_id
+	var input_vec = Vector2.ZERO
+	
+	if Input.is_action_pressed(prefix + "left"):
+		input_vec.x -= 1.0
+	if Input.is_action_pressed(prefix + "right"):
+		input_vec.x += 1.0
+	if Input.is_action_pressed(prefix + "up"):
+		input_vec.y -= 1.0
+	if Input.is_action_pressed(prefix + "down"):
+		input_vec.y += 1.0
+	
+	if input_vec.length_squared() > 0.01:
+		input_vec = input_vec.normalized()
+		var move_dir = Vector3(input_vec.x, 0.0, input_vec.y)
+		apply_central_force(move_dir * RollConfig.DRIVE_FORCE)
+		
+		# Augen in Bewegungsrichtung orientieren
+		if _eyes_pivot:
+			_eyes_pivot.rotation.y = atan2(-move_dir.x, -move_dir.z)
+	
+	if Input.is_action_just_pressed(prefix + "boost") and boost_cooldown_timer <= 0.0:
+		trigger_boost(input_vec)
+
+func trigger_boost(input_vec: Vector2) -> void:
+	boost_cooldown_timer = RollConfig.BOOST_COOLDOWN
+	var boost_dir = Vector3.FORWARD
+	if input_vec.length_squared() > 0.01:
+		boost_dir = Vector3(input_vec.x, 0.0, input_vec.y).normalized()
+	elif linear_velocity.length_squared() > 0.1:
+		boost_dir = Vector3(linear_velocity.x, 0.0, linear_velocity.z).normalized()
+	
+	apply_central_impulse(boost_dir * RollConfig.BOOST_IMPULSE)
+
+func _clamp_speed() -> void:
+	var horizontal_vel = Vector3(linear_velocity.x, 0.0, linear_velocity.z)
+	if horizontal_vel.length() > RollConfig.MAX_LINEAR_SPEED:
+		var clamped = horizontal_vel.normalized() * RollConfig.MAX_LINEAR_SPEED
+		linear_velocity.x = clamped.x
+		linear_velocity.z = clamped.z
+
+func _check_out_of_bounds() -> void:
+	var cur_y = global_position.y if is_inside_tree() else position.y
+	if cur_y < RollConfig.OUT_OF_BOUNDS_Y:
+		is_active = false
+		fell_off.emit(player_id, last_hit_by_id)
+		respawn_timer = RollConfig.RESPAWN_DELAY_SECONDS
+
+func respawn(pos: Vector3 = initial_spawn_point) -> void:
+	if is_inside_tree():
+		global_position = pos + Vector3(0, 3.0, 0) # Fall von oben
+	else:
+		position = pos + Vector3(0, 3.0, 0)
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	is_active = true
+	last_hit_by_id = 0
+	last_hit_timer = 0.0
+	boost_cooldown_timer = 0.0
+
+func _on_body_entered(body: Node) -> void:
+	if body is PlayerBall and body != self:
+		# Gegenseitiger Rammkontakt: Speichere Angreifer für 1.5s
+		last_hit_by_id = body.player_id
+		last_hit_timer = 1.5

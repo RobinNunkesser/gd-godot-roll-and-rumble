@@ -1,0 +1,195 @@
+class_name MainRollGame
+extends Node3D
+
+const RollConfig = preload("res://scripts/config.gd")
+const RollStateManager = preload("res://scripts/state_manager.gd")
+const PlayerBall = preload("res://scripts/player_ball.gd")
+const MousetrapHazard = preload("res://scripts/mousetrap.gd")
+const SharedArenaCamera = preload("res://scripts/shared_camera.gd")
+
+var state_manager: RollStateManager
+var player1: PlayerBall
+var player2: PlayerBall
+var camera: SharedArenaCamera
+
+var ui_timer_label: Label
+var ui_p1_label: Label
+var ui_p2_label: Label
+var ui_status_label: Label
+
+func _ready() -> void:
+	state_manager = RollStateManager.new()
+	state_manager.state_changed.connect(_on_state_changed)
+	state_manager.score_updated.connect(_on_score_updated)
+	state_manager.timer_updated.connect(_on_timer_updated)
+	state_manager.match_finished.connect(_on_match_finished)
+	
+	_build_scene()
+	_build_ui()
+	
+	state_manager.reset_match()
+
+func _build_scene() -> void:
+	# 1. Umwelt & Licht
+	var light = DirectionalLight3D.new()
+	light.name = "SunLight"
+	light.position = Vector3(10, 20, 10)
+	light.rotation_degrees = Vector3(-50, 45, 0)
+	light.shadow_enabled = true
+	add_child(light)
+	
+	# 2. Arena-Plattform (Cylinder)
+	var arena_body = StaticBody3D.new()
+	arena_body.name = "ArenaPlatform"
+	
+	var col = CollisionShape3D.new()
+	var cyl_shape = CylinderShape3D.new()
+	cyl_shape.radius = RollConfig.ARENA_RADIUS
+	cyl_shape.height = RollConfig.ARENA_HEIGHT
+	col.shape = cyl_shape
+	arena_body.add_child(col)
+	
+	var mesh_inst = MeshInstance3D.new()
+	var cyl_mesh = CylinderMesh.new()
+	cyl_mesh.top_radius = RollConfig.ARENA_RADIUS
+	cyl_mesh.bottom_radius = RollConfig.ARENA_RADIUS
+	cyl_mesh.height = RollConfig.ARENA_HEIGHT
+	mesh_inst.mesh = cyl_mesh
+	
+	var arena_mat = StandardMaterial3D.new()
+	arena_mat.albedo_color = Color(0.2, 0.45, 0.75) # Cool blue arena
+	arena_mat.roughness = 0.5
+	mesh_inst.material_override = arena_mat
+	arena_body.add_child(mesh_inst)
+	add_child(arena_body)
+	
+	# 3. Vier Mausefallen
+	var trap_angles = [0.0, PI * 0.5, PI, PI * 1.5]
+	for i in range(trap_angles.size()):
+		var angle = trap_angles[i]
+		var trap = MousetrapHazard.new()
+		trap.name = "Mousetrap_%d" % i
+		var dist = RollConfig.ARENA_RADIUS * 0.65
+		trap.position = Vector3(cos(angle) * dist, RollConfig.ARENA_HEIGHT * 0.5 + 0.1, sin(angle) * dist)
+		trap.rotation.y = -angle
+		add_child(trap)
+	
+	# 4. Spieler 1 (Rot) & Spieler 2 (Blau)
+	player1 = PlayerBall.new()
+	player1.name = "Player1_Red"
+	player1.player_id = 1
+	player1.ball_color = Color(0.95, 0.2, 0.2)
+	player1.position = Vector3(-4.5, 1.0, 0.0)
+	player1.fell_off.connect(_on_player_fell_off)
+	add_child(player1)
+	
+	player2 = PlayerBall.new()
+	player2.name = "Player2_Blue"
+	player2.player_id = 2
+	player2.ball_color = Color(0.15, 0.5, 0.95)
+	player2.position = Vector3(4.5, 1.0, 0.0)
+	player2.fell_off.connect(_on_player_fell_off)
+	add_child(player2)
+	
+	# 5. Shared Camera
+	camera = SharedArenaCamera.new()
+	camera.name = "SharedCamera"
+	camera.position = Vector3(0, RollConfig.CAMERA_BASE_HEIGHT, RollConfig.CAMERA_MIN_DISTANCE)
+	camera.target_nodes = [player1, player2]
+	camera.current = true
+	add_child(camera)
+
+func _build_ui() -> void:
+	var canvas = CanvasLayer.new()
+	canvas.name = "HUD"
+	
+	var ui_root = Control.new()
+	ui_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	canvas.add_child(ui_root)
+	
+	# Timer
+	ui_timer_label = Label.new()
+	ui_timer_label.text = "60.0"
+	ui_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_timer_label.position = Vector2(540, 20)
+	ui_timer_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	ui_timer_label.size = Vector2(200, 50)
+	ui_timer_label.add_theme_font_size_override("font_size", 36)
+	ui_root.add_child(ui_timer_label)
+	
+	# P1 Score (Left)
+	ui_p1_label = Label.new()
+	ui_p1_label.text = "P1 (Red): 0"
+	ui_p1_label.position = Vector2(40, 20)
+	ui_p1_label.add_theme_font_size_override("font_size", 28)
+	ui_p1_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+	ui_root.add_child(ui_p1_label)
+	
+	# P2 Score (Right)
+	ui_p2_label = Label.new()
+	ui_p2_label.text = "P2 (Blue): 0"
+	ui_p2_label.position = Vector2(1060, 20)
+	ui_p2_label.add_theme_font_size_override("font_size", 28)
+	ui_p2_label.add_theme_color_override("font_color", Color(0.3, 0.6, 1.0))
+	ui_root.add_child(ui_p2_label)
+	
+	# Status / Winner Banner
+	ui_status_label = Label.new()
+	ui_status_label.text = "READY..."
+	ui_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_status_label.position = Vector2(440, 320)
+	ui_status_label.size = Vector2(400, 80)
+	ui_status_label.add_theme_font_size_override("font_size", 42)
+	ui_root.add_child(ui_status_label)
+	
+	add_child(canvas)
+
+func _process(delta: float) -> void:
+	if state_manager:
+		state_manager.update_logic(delta)
+	
+	if Input.is_action_just_pressed("restart"):
+		restart_game()
+
+func restart_game() -> void:
+	player1.respawn(Vector3(-4.5, 1.0, 0.0))
+	player2.respawn(Vector3(4.5, 1.0, 0.0))
+	state_manager.reset_match()
+
+func _on_player_fell_off(victim_id: int, kicker_id: int) -> void:
+	state_manager.record_player_fall(victim_id, kicker_id)
+
+func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
+	if not ui_status_label:
+		return
+	match new_state:
+		RollStateManager.MatchState.WARMUP:
+			ui_status_label.visible = true
+			ui_status_label.text = "READY... GO!"
+		RollStateManager.MatchState.PLAYING:
+			ui_status_label.visible = false
+		RollStateManager.MatchState.SUDDEN_DEATH:
+			ui_status_label.visible = true
+			ui_status_label.text = "🔥 SUDDEN DEATH! 🔥"
+		RollStateManager.MatchState.MATCH_OVER:
+			ui_status_label.visible = true
+			var w = state_manager.get_winner()
+			if w == 1:
+				ui_status_label.text = "🏆 PLAYER 1 (RED) WINS! 🏆"
+			elif w == 2:
+				ui_status_label.text = "🏆 PLAYER 2 (BLUE) WINS! 🏆"
+			else:
+				ui_status_label.text = "DRAW! Press R to rematch"
+
+func _on_score_updated(player_id: int, new_score: int) -> void:
+	if player_id == 1 and ui_p1_label:
+		ui_p1_label.text = "P1 (Red): %d" % new_score
+	elif player_id == 2 and ui_p2_label:
+		ui_p2_label.text = "P2 (Blue): %d" % new_score
+
+func _on_timer_updated(time_remaining: float) -> void:
+	if ui_timer_label:
+		ui_timer_label.text = "%.1f" % time_remaining
+
+func _on_match_finished(_winner_id: int) -> void:
+	pass
