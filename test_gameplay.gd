@@ -71,6 +71,10 @@ func _test_player_ball() -> bool:
 	
 	assert(ball.mass == RollConfig.BALL_MASS, "Ball mass mismatch")
 	assert(ball.is_active, "Ball should be active initially")
+	assert(ball.has_node("CollisionShape3D"), "PlayerBall MUST have a CollisionShape3D")
+	var col = ball.get_node("CollisionShape3D") as CollisionShape3D
+	assert(col != null and col.shape is SphereShape3D, "Collision shape must be SphereShape3D")
+	assert(is_equal_approx(col.shape.radius, RollConfig.BALL_RADIUS), "Collision shape radius mismatch")
 	
 	# Boost testen
 	ball.trigger_boost(Vector2(1.0, 0.0))

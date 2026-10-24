@@ -15,12 +15,16 @@ var initial_spawn_point: Vector3 = Vector3.ZERO
 
 var _mesh_instance: MeshInstance3D
 var _eyes_pivot: Node3D
+var _pending_teleport: bool = false
+var _teleport_target: Vector3 = Vector3.ZERO
 
 signal fell_off(player_id: int, last_hitter_id: int)
 
 func _ready() -> void:
 	initial_spawn_point = global_position if is_inside_tree() else position
 	mass = RollConfig.BALL_MASS
+	linear_damp = 1.0
+	angular_damp = 1.0
 	
 	# Physik-Material einrichten
 	var phys_mat = PhysicsMaterial.new()
@@ -33,7 +37,24 @@ func _ready() -> void:
 	if not body_entered.is_connected(_on_body_entered):
 		body_entered.connect(_on_body_entered)
 	
+	_setup_collision()
 	_setup_visuals()
+
+func _setup_collision() -> void:
+	if not has_node("CollisionShape3D"):
+		var col = CollisionShape3D.new()
+		col.name = "CollisionShape3D"
+		var sphere_shape = SphereShape3D.new()
+		sphere_shape.radius = RollConfig.BALL_RADIUS
+		col.shape = sphere_shape
+		add_child(col)
+
+func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	if _pending_teleport:
+		state.transform.origin = _teleport_target
+		state.linear_velocity = Vector3.ZERO
+		state.angular_velocity = Vector3.ZERO
+		_pending_teleport = false
 
 func _setup_visuals() -> void:
 	# Prüfen, ob bereits Visuals da sind (z. B. aus Szene)
@@ -153,10 +174,12 @@ func _check_out_of_bounds() -> void:
 		respawn_timer = RollConfig.RESPAWN_DELAY_SECONDS
 
 func respawn(pos: Vector3 = initial_spawn_point) -> void:
+	_teleport_target = pos + Vector3(0, 2.0, 0)
 	if is_inside_tree():
-		global_position = pos + Vector3(0, 3.0, 0) # Fall von oben
+		_pending_teleport = true
+		global_position = _teleport_target
 	else:
-		position = pos + Vector3(0, 3.0, 0)
+		position = _teleport_target
 	linear_velocity = Vector3.ZERO
 	angular_velocity = Vector3.ZERO
 	is_active = true

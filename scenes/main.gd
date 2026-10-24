@@ -41,6 +41,12 @@ func _build_scene() -> void:
 	# 2. Arena-Plattform (Cylinder)
 	var arena_body = StaticBody3D.new()
 	arena_body.name = "ArenaPlatform"
+	arena_body.position = Vector3(0, -RollConfig.ARENA_HEIGHT * 0.5, 0)
+	
+	var arena_phys = PhysicsMaterial.new()
+	arena_phys.friction = RollConfig.ARENA_FRICTION
+	arena_phys.bounce = 0.3
+	arena_body.physics_material_override = arena_phys
 	
 	var col = CollisionShape3D.new()
 	var cyl_shape = CylinderShape3D.new()
@@ -70,7 +76,7 @@ func _build_scene() -> void:
 		var trap = MousetrapHazard.new()
 		trap.name = "Mousetrap_%d" % i
 		var dist = RollConfig.ARENA_RADIUS * 0.65
-		trap.position = Vector3(cos(angle) * dist, RollConfig.ARENA_HEIGHT * 0.5 + 0.1, sin(angle) * dist)
+		trap.position = Vector3(cos(angle) * dist, 0.075, sin(angle) * dist)
 		trap.rotation.y = -angle
 		add_child(trap)
 	
@@ -79,7 +85,7 @@ func _build_scene() -> void:
 	player1.name = "Player1_Red"
 	player1.player_id = 1
 	player1.ball_color = Color(0.95, 0.2, 0.2)
-	player1.position = Vector3(-4.5, 1.0, 0.0)
+	player1.position = Vector3(-4.5, RollConfig.BALL_RADIUS + 0.1, 0.0)
 	player1.fell_off.connect(_on_player_fell_off)
 	add_child(player1)
 	
@@ -87,7 +93,7 @@ func _build_scene() -> void:
 	player2.name = "Player2_Blue"
 	player2.player_id = 2
 	player2.ball_color = Color(0.15, 0.5, 0.95)
-	player2.position = Vector3(4.5, 1.0, 0.0)
+	player2.position = Vector3(4.5, RollConfig.BALL_RADIUS + 0.1, 0.0)
 	player2.fell_off.connect(_on_player_fell_off)
 	add_child(player2)
 	
@@ -152,8 +158,8 @@ func _process(delta: float) -> void:
 		restart_game()
 
 func restart_game() -> void:
-	player1.respawn(Vector3(-4.5, 1.0, 0.0))
-	player2.respawn(Vector3(4.5, 1.0, 0.0))
+	player1.respawn(Vector3(-4.5, RollConfig.BALL_RADIUS + 0.1, 0.0))
+	player2.respawn(Vector3(4.5, RollConfig.BALL_RADIUS + 0.1, 0.0))
 	state_manager.reset_match()
 
 func _on_player_fell_off(victim_id: int, kicker_id: int) -> void:
