@@ -34,9 +34,9 @@ const MATCH_DURATION_SECONDS: float = 60.0
 const WARMUP_DURATION_SECONDS: float = 3.0
 const RESPAWN_DELAY_SECONDS: float = 1.5
 
-# Kamera-Parameter
-const CAMERA_MIN_DISTANCE: float = 14.0
-const CAMERA_MAX_DISTANCE: float = 26.0
-const CAMERA_BASE_HEIGHT: float = 16.0
-const CAMERA_LOOK_ANGLE_DEG: float = -55.0
+# Kamera-Parameter (Dynamische Nahansicht für packendes Spielgefühl)
+const CAMERA_MIN_DISTANCE: float = 7.0
+const CAMERA_MAX_DISTANCE: float = 14.0
+const CAMERA_BASE_HEIGHT: float = 7.5
+const CAMERA_LOOK_ANGLE_DEG: float = -45.0
 const CAMERA_LERP_SPEED: float = 5.0

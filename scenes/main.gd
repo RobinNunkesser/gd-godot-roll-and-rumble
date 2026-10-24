@@ -84,6 +84,7 @@ func _build_scene() -> void:
 	player1 = PlayerBall.new()
 	player1.name = "Player1_Red"
 	player1.player_id = 1
+	player1.is_bot = false
 	player1.ball_color = Color(0.95, 0.2, 0.2)
 	player1.position = Vector3(-4.5, RollConfig.BALL_RADIUS + 0.1, 0.0)
 	player1.fell_off.connect(_on_player_fell_off)
@@ -92,12 +93,16 @@ func _build_scene() -> void:
 	player2 = PlayerBall.new()
 	player2.name = "Player2_Blue"
 	player2.player_id = 2
+	player2.is_bot = true # Default: AI Bot für nahtlosen Single-Player Modus!
 	player2.ball_color = Color(0.15, 0.5, 0.95)
 	player2.position = Vector3(4.5, RollConfig.BALL_RADIUS + 0.1, 0.0)
 	player2.fell_off.connect(_on_player_fell_off)
 	add_child(player2)
 	
-	# 5. Shared Camera
+	player1.target_opponent = player2
+	player2.target_opponent = player1
+	
+	# 5. Shared Camera (Dynamische Nahansicht)
 	camera = SharedArenaCamera.new()
 	camera.name = "SharedCamera"
 	camera.position = Vector3(0, RollConfig.CAMERA_BASE_HEIGHT, RollConfig.CAMERA_MIN_DISTANCE)
@@ -133,11 +138,19 @@ func _build_ui() -> void:
 	
 	# P2 Score (Right)
 	ui_p2_label = Label.new()
-	ui_p2_label.text = "P2 (Blue): 0"
-	ui_p2_label.position = Vector2(1060, 20)
+	ui_p2_label.position = Vector2(980, 20)
 	ui_p2_label.add_theme_font_size_override("font_size", 28)
 	ui_p2_label.add_theme_color_override("font_color", Color(0.3, 0.6, 1.0))
 	ui_root.add_child(ui_p2_label)
+	_update_p2_label()
+	
+	# Bottom Hint (Singleplayer / Multiplayer & Controls)
+	var ui_hint = Label.new()
+	ui_hint.text = "[B] oder [Tab]: P2 AI-Bot ein/aus  |  [R]: Neustart  |  P1: WASD+Space"
+	ui_hint.position = Vector2(40, 670)
+	ui_hint.add_theme_font_size_override("font_size", 16)
+	ui_hint.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 0.8))
+	ui_root.add_child(ui_hint)
 	
 	# Status / Winner Banner
 	ui_status_label = Label.new()
@@ -187,11 +200,27 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 			else:
 				ui_status_label.text = "DRAW! Press R to rematch"
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_B or event.keycode == KEY_TAB:
+			toggle_p2_bot()
+
+func toggle_p2_bot() -> void:
+	if player2:
+		player2.is_bot = not player2.is_bot
+		_update_p2_label()
+
+func _update_p2_label() -> void:
+	if ui_p2_label:
+		var mode_str = "AI Bot" if (player2 and player2.is_bot) else "Human"
+		var score = state_manager.scores[2] if state_manager else 0
+		ui_p2_label.text = "P2 (Blue - %s): %d" % [mode_str, score]
+
 func _on_score_updated(player_id: int, new_score: int) -> void:
 	if player_id == 1 and ui_p1_label:
 		ui_p1_label.text = "P1 (Red): %d" % new_score
-	elif player_id == 2 and ui_p2_label:
-		ui_p2_label.text = "P2 (Blue): %d" % new_score
+	elif player_id == 2:
+		_update_p2_label()
 
 func _on_timer_updated(time_remaining: float) -> void:
 	if ui_timer_label:
@@ -199,3 +228,4 @@ func _on_timer_updated(time_remaining: float) -> void:
 
 func _on_match_finished(_winner_id: int) -> void:
 	pass
+

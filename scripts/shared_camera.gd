@@ -38,10 +38,10 @@ func update_camera(delta: float) -> void:
 			if dist > max_dist:
 				max_dist = dist
 	
-	# 3. Zieldistanz und Höhe anpassen
-	var dist_factor = clampf(max_dist / 14.0, 0.0, 1.0)
+	# 3. Zieldistanz und Höhe anpassen (Kompakte, dynamische Rahmung)
+	var dist_factor = clampf(max_dist / 12.0, 0.0, 1.0)
 	var desired_distance = lerpf(RollConfig.CAMERA_MIN_DISTANCE, RollConfig.CAMERA_MAX_DISTANCE, dist_factor)
-	var desired_height = lerpf(RollConfig.CAMERA_BASE_HEIGHT, RollConfig.CAMERA_BASE_HEIGHT + 6.0, dist_factor)
+	var desired_height = lerpf(RollConfig.CAMERA_BASE_HEIGHT, RollConfig.CAMERA_BASE_HEIGHT + 3.5, dist_factor)
 	
 	var desired_position = centroid + Vector3(0.0, desired_height, desired_distance)
 	

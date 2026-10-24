@@ -80,13 +80,27 @@ func _test_player_ball() -> bool:
 	ball.trigger_boost(Vector2(1.0, 0.0))
 	assert(ball.boost_cooldown_timer > 0.0, "Boost cooldown should be active")
 	
+	# Bot AI Steering & Edge-Avoidance testen
+	ball.is_bot = true
+	var opp = Node3D.new()
+	opp.position = Vector3(2.0, 0.0, 0.0)
+	root.add_child(opp)
+	ball.target_opponent = opp
+	ball.position = Vector3(1.0, 0.0, 0.0)
+	ball._handle_bot_ai(0.016)
+	
+	# Edge Avoidance bei r > danger_radius testen
+	ball.position = Vector3(8.5, 0.0, 0.0)
+	ball._handle_bot_ai(0.016)
+	opp.queue_free()
+	
 	# Out-of-bounds Erkennung
 	ball.position.y = RollConfig.OUT_OF_BOUNDS_Y - 1.0
 	ball._check_out_of_bounds()
 	assert(not ball.is_active, "Ball should be inactive after falling below threshold")
 	
 	ball.queue_free()
-	print("  -> PlayerBall OK.")
+	print("  -> PlayerBall & AI Steering OK.")
 	return true
 
 func _test_mousetrap() -> bool:
@@ -140,6 +154,13 @@ func _test_main_scene() -> bool:
 	assert(main_game.player1 != null, "Player 1 should be instantiated")
 	assert(main_game.player2 != null, "Player 2 should be instantiated")
 	assert(main_game.camera != null, "Camera should be instantiated")
+	assert(main_game.player2.is_bot, "Player 2 should default to AI bot for single-player")
+	
+	# Bot Toggle testen
+	main_game.toggle_p2_bot()
+	assert(not main_game.player2.is_bot, "Player 2 should toggle to Human")
+	main_game.toggle_p2_bot()
+	assert(main_game.player2.is_bot, "Player 2 should toggle back to AI bot")
 	
 	main_game._process(0.016)
 	main_game.queue_free()

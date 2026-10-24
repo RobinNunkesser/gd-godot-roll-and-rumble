@@ -5,7 +5,10 @@ const RollConfig = preload("res://scripts/config.gd")
 
 @export var player_id: int = 1
 @export var ball_color: Color = Color(0.9, 0.2, 0.2)
+@export var is_bot: bool = false
+@export var bot_difficulty: float = 1.0
 
+var target_opponent: Node3D = null
 var is_active: bool = true
 var boost_cooldown_timer: float = 0.0
 var last_hit_by_id: int = 0
@@ -120,9 +123,49 @@ func _physics_process(delta: float) -> void:
 		if last_hit_timer <= 0.0:
 			last_hit_by_id = 0
 
-	_handle_input(delta)
+	if is_bot:
+		_handle_bot_ai(delta)
+	else:
+		_handle_input(delta)
 	_clamp_speed()
 	_check_out_of_bounds()
+
+func _handle_bot_ai(_delta: float) -> void:
+	var my_pos = global_position if is_inside_tree() else position
+	var dist_from_center = Vector2(my_pos.x, my_pos.z).length()
+	var steer_vec = Vector2.ZERO
+	
+	# 1. Edge-Avoidance: Wenn gefährlich nah am Rand, mit Top-Priorität zur Mitte steuern
+	var danger_radius = RollConfig.ARENA_RADIUS * 0.68
+	if dist_from_center > danger_radius:
+		var to_center = -Vector2(my_pos.x, my_pos.z).normalized()
+		steer_vec = to_center * 1.5
+	else:
+		# 2. Gegner anvisieren (Seek & Ram)
+		if is_instance_valid(target_opponent):
+			var opp_pos = target_opponent.global_position if (is_inside_tree() and target_opponent.is_inside_tree()) else target_opponent.position
+			var to_opp = Vector2(opp_pos.x - my_pos.x, opp_pos.z - my_pos.z)
+			var opp_dist = to_opp.length()
+			
+			if opp_dist > 0.05:
+				steer_vec = to_opp.normalized()
+			
+			# 3. Rammschub / Boost bei Ausrichtung und passender Distanz
+			if opp_dist < 4.8 and opp_dist > 1.2 and boost_cooldown_timer <= 0.0:
+				var move_dir_2d = Vector2(linear_velocity.x, linear_velocity.z)
+				if move_dir_2d.length() > 1.0:
+					var dot = move_dir_2d.normalized().dot(to_opp.normalized())
+					if dot > 0.5: # schaut in Richtung des Gegners
+						trigger_boost(to_opp.normalized())
+	
+	# 4. Kraft anwenden & Blickrichtung ausrichten
+	if steer_vec.length_squared() > 0.01:
+		steer_vec = steer_vec.normalized()
+		var move_dir = Vector3(steer_vec.x, 0.0, steer_vec.y)
+		apply_central_force(move_dir * RollConfig.DRIVE_FORCE * bot_difficulty)
+		
+		if _eyes_pivot:
+			_eyes_pivot.rotation.y = atan2(-move_dir.x, -move_dir.z)
 
 func _handle_input(_delta: float) -> void:
 	var prefix = "p%d_" % player_id
