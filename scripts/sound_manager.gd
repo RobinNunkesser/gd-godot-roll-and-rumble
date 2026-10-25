@@ -10,6 +10,8 @@ var stream_snap: AudioStreamWAV
 var stream_boost: AudioStreamWAV
 var stream_fall: AudioStreamWAV
 var stream_powerup: AudioStreamWAV
+var stream_round_win: AudioStreamWAV
+var stream_fanfare: AudioStreamWAV
 
 static var instance: RollSoundManager
 
@@ -103,6 +105,28 @@ func play_powerup() -> void:
 		p.pitch_scale = randf_range(0.98, 1.02)
 		p.play()
 
+## 6. Runden-Sieg Akzent
+func play_round_win() -> void:
+	if not is_inside_tree():
+		return
+	var p = _get_available_player()
+	if p:
+		p.stream = stream_round_win
+		p.volume_db = 1.0
+		p.pitch_scale = 1.0
+		p.play()
+
+## 7. Große Turnier-Sieges-Fanfare
+func play_fanfare() -> void:
+	if not is_inside_tree():
+		return
+	var p = _get_available_player()
+	if p:
+		p.stream = stream_fanfare
+		p.volume_db = 2.0
+		p.pitch_scale = 1.0
+		p.play()
+
 func _synthesize_all_sounds() -> void:
 	stream_bounce = _generate_bounce_wav()
 	stream_smash = _generate_smash_wav()
@@ -110,6 +134,8 @@ func _synthesize_all_sounds() -> void:
 	stream_boost = _generate_boost_wav()
 	stream_fall = _generate_fall_wav()
 	stream_powerup = _generate_powerup_wav()
+	stream_round_win = _generate_round_win_wav()
+	stream_fanfare = _generate_fanfare_wav()
 
 func _generate_bounce_wav() -> AudioStreamWAV:
 	var mix_rate = 22050
@@ -243,6 +269,82 @@ func _generate_powerup_wav() -> AudioStreamWAV:
 			freq = 783.99
 		var env = sin((progress - float(note_idx) / 3.0) * 3.0 * PI)
 		var sample = sin(t * freq * TAU) * env * 20000.0
+		data.encode_s16(i * 2, int(sample))
+		
+	var wav = AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = mix_rate
+	wav.stereo = false
+	wav.data = data
+	return wav
+
+func _generate_round_win_wav() -> AudioStreamWAV:
+	var mix_rate = 22050
+	var duration = 0.38
+	var total_samples = int(mix_rate * duration)
+	var data = PackedByteArray()
+	data.resize(total_samples * 2)
+	
+	# Aufsteigender Dreiklang (C5 -> E5 -> G5)
+	for i in range(total_samples):
+		var t = float(i) / float(mix_rate)
+		var progress = t / duration
+		var note_idx = int(progress * 3.0)
+		var freq = 523.25
+		if note_idx == 1:
+			freq = 659.25
+		elif note_idx >= 2:
+			freq = 783.99
+		var note_progress = (progress - float(note_idx) / 3.0) * 3.0
+		var env = sin(note_progress * PI) * (1.0 - progress * 0.3)
+		var sample = (sin(t * freq * TAU) * 0.7 + sin(t * freq * 2.0 * TAU) * 0.3) * env * 22000.0
+		data.encode_s16(i * 2, int(sample))
+		
+	var wav = AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = mix_rate
+	wav.stereo = false
+	wav.data = data
+	return wav
+
+func _generate_fanfare_wav() -> AudioStreamWAV:
+	var mix_rate = 22050
+	var duration = 0.85
+	var total_samples = int(mix_rate * duration)
+	var data = PackedByteArray()
+	data.resize(total_samples * 2)
+	
+	# Triumphale 4-Noten-Fanfare (C4, E4, G4, C5 mit langem Ausklang & Vibrato)
+	var freqs = [261.63, 329.63, 392.00, 523.25]
+	var times = [0.0, 0.15, 0.30, 0.45, 0.85]
+	
+	for i in range(total_samples):
+		var t = float(i) / float(mix_rate)
+		var note_idx = 0
+		if t >= times[3]:
+			note_idx = 3
+		elif t >= times[2]:
+			note_idx = 2
+		elif t >= times[1]:
+			note_idx = 1
+		
+		var freq = freqs[note_idx]
+		var note_t = t - times[note_idx]
+		var note_dur = times[note_idx + 1] - times[note_idx]
+		var note_prog = note_t / note_dur
+		
+		# Vibrato auf der letzten Note
+		if note_idx == 3:
+			freq += sin(t * 6.0 * TAU) * 5.0
+			
+		var env = sin(clampf(note_prog * PI, 0.0, PI))
+		if note_idx == 3:
+			env = (1.0 - note_prog * 0.5)
+			
+		var s1 = sin(t * freq * TAU)
+		var s2 = sin(t * freq * 2.0 * TAU) * 0.4
+		var s3 = sin(t * freq * 3.0 * TAU) * 0.2
+		var sample = (s1 + s2 + s3) * env * 21000.0
 		data.encode_s16(i * 2, int(sample))
 		
 	var wav = AudioStreamWAV.new()

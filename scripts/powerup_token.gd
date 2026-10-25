@@ -7,6 +7,7 @@ extends Area3D
 
 const RollConfig = preload("res://scripts/config.gd")
 const RollSoundManager = preload("res://scripts/sound_manager.gd")
+const LeaderboardManager = preload("res://scripts/leaderboard_manager.gd")
 
 enum Type {
 	ANVIL,          # 1. 🪨 Amboss (3x Masse, Dampfwalze)
@@ -168,4 +169,6 @@ func _on_body_entered(body: Node) -> void:
 		body.apply_powerup(powerup_type, RollConfig.POWERUP_DURATION_SECONDS)
 		if RollSoundManager.instance:
 			RollSoundManager.instance.play_powerup()
+		if "player_id" in body and LeaderboardManager.instance:
+			LeaderboardManager.instance.record_powerup_collected(body.player_id)
 		queue_free()

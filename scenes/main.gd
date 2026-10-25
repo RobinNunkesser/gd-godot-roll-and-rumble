@@ -16,14 +16,19 @@ const RollSoundManager = preload("res://scripts/sound_manager.gd")
 const RollImpactParticles = preload("res://scripts/impact_particles.gd")
 const PowerUpSpawner = preload("res://scripts/powerup_spawner.gd")
 const PowerUpToken = preload("res://scripts/powerup_token.gd")
+const LeaderboardManager = preload("res://scripts/leaderboard_manager.gd")
+const Trophy3D = preload("res://scripts/trophy_3d.gd")
 
 var state_manager: RollStateManager
+var leaderboard: LeaderboardManager
 var current_arena: BaseArena
 var selected_arena_type: BaseArena.ArenaType = BaseArena.ArenaType.CLASSIC_RING
 var sound_manager: RollSoundManager
 var impact_particles: RollImpactParticles
 var powerup_spawner: PowerUpSpawner
+var active_trophy: Trophy3D
 var powerups_enabled: bool = true
+
 var player1: PlayerBall
 var player2: PlayerBall
 var player3: PlayerBall
@@ -35,11 +40,22 @@ var ui_lobby_panel: Control
 var ui_arena_card: Panel
 var ui_arena_title_label: Label
 var ui_arena_desc_label: Label
-var ui_powerup_card: Panel
+
+var ui_options_card: Panel
+var ui_mode_label: Label
+var ui_mode_toggle_btn: Button
 var ui_powerup_label: Label
 var ui_powerup_toggle_btn: Button
+var ui_leaderboard_btn: Button
+
+var ui_leaderboard_modal: Control
+var ui_leaderboard_content_label: Label
+var ui_leaderboard_close_btn: Button
+var ui_leaderboard_reset_btn: Button
+
 var ui_slot_labels: Array[Label] = []
 var ui_timer_label: Label
+var ui_series_label: Label
 var ui_score_labels: Dictionary = {}
 var ui_status_label: Label
 var ui_hud_container: Control
@@ -56,10 +72,15 @@ const SLOT_CONTROL_OPTIONS = [
 ]
 
 func _ready() -> void:
+	leaderboard = LeaderboardManager.new()
+	
 	state_manager = RollStateManager.new()
 	state_manager.state_changed.connect(_on_state_changed)
 	state_manager.score_updated.connect(_on_score_updated)
 	state_manager.timer_updated.connect(_on_timer_updated)
+	state_manager.series_score_updated.connect(_on_series_score_updated)
+	state_manager.round_finished.connect(_on_round_finished)
+	state_manager.tournament_finished.connect(_on_tournament_finished)
 	state_manager.match_finished.connect(_on_match_finished)
 	
 	_build_scene()
@@ -147,7 +168,7 @@ func _build_scene() -> void:
 	player1.target_opponent = player2
 	player2.target_opponent = player1
 	
-	# 4. Shared Camera
+	# 5. Shared Camera
 	camera = SharedArenaCamera.new()
 	camera.name = "SharedCamera"
 	camera.position = Vector3(0, RollConfig.CAMERA_BASE_HEIGHT, RollConfig.CAMERA_MIN_DISTANCE)
@@ -155,7 +176,7 @@ func _build_scene() -> void:
 	camera.current = true
 	add_child(camera)
 	
-	# 5. Aktive Arena laden
+	# 6. Aktive Arena laden
 	_load_arena(selected_arena_type)
 
 func _build_ui() -> void:
@@ -167,13 +188,22 @@ func _build_ui() -> void:
 	ui_hud_container.set_anchors_preset(Control.PRESET_FULL_RECT)
 	canvas.add_child(ui_hud_container)
 	
+	# Tournament Series Tracker Banner oben
+	ui_series_label = Label.new()
+	ui_series_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_series_label.position = Vector2(240, 6)
+	ui_series_label.size = Vector2(800, 26)
+	ui_series_label.add_theme_font_size_override("font_size", 18)
+	ui_series_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	ui_hud_container.add_child(ui_series_label)
+	
 	# Timer
 	ui_timer_label = Label.new()
 	ui_timer_label.text = "60.0"
 	ui_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ui_timer_label.position = Vector2(540, 20)
-	ui_timer_label.size = Vector2(200, 50)
-	ui_timer_label.add_theme_font_size_override("font_size", 36)
+	ui_timer_label.position = Vector2(540, 32)
+	ui_timer_label.size = Vector2(200, 48)
+	ui_timer_label.add_theme_font_size_override("font_size", 34)
 	ui_hud_container.add_child(ui_timer_label)
 	
 	# Player Scores (P1 Red, P2 Blue, P3 Yellow, P4 Green)
@@ -194,13 +224,14 @@ func _build_ui() -> void:
 		ui_hud_container.add_child(lbl)
 		ui_score_labels[i + 1] = lbl
 	
-	# Status / Countdown Banner
+	# Status / Countdown / Winner Banner
 	ui_status_label = Label.new()
 	ui_status_label.text = "READY..."
 	ui_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ui_status_label.position = Vector2(340, 280)
-	ui_status_label.size = Vector2(600, 100)
-	ui_status_label.add_theme_font_size_override("font_size", 48)
+	ui_status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	ui_status_label.position = Vector2(200, 240)
+	ui_status_label.size = Vector2(880, 160)
+	ui_status_label.add_theme_font_size_override("font_size", 42)
 	ui_hud_container.add_child(ui_status_label)
 	
 	var in_game_hint = Label.new()
@@ -222,17 +253,17 @@ func _build_ui() -> void:
 	var title = Label.new()
 	title.text = "ROLL & RUMBLE 3D — LOBBY"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(240, 40)
-	title.size = Vector2(800, 60)
-	title.add_theme_font_size_override("font_size", 40)
+	title.position = Vector2(240, 35)
+	title.size = Vector2(800, 50)
+	title.add_theme_font_size_override("font_size", 38)
 	ui_lobby_panel.add_child(title)
 	
 	var subtitle = Label.new()
-	subtitle.text = "Slots: [1]-[4]  |  Arena wechseln: [T]/[A]  |  [P] Power-Ups: AN/AUS  |  Start mit [SPACE / ENTER]"
+	subtitle.text = "Slots: [1]-[4]  |  Modus: [M]  |  Power-Ups: [P]  |  Bestenliste: [L]  |  Arena: [T]/[A]  |  Start: [SPACE]"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.position = Vector2(140, 100)
-	subtitle.size = Vector2(1000, 30)
-	subtitle.add_theme_font_size_override("font_size", 20)
+	subtitle.position = Vector2(100, 95)
+	subtitle.size = Vector2(1080, 30)
+	subtitle.add_theme_font_size_override("font_size", 19)
 	subtitle.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
 	ui_lobby_panel.add_child(subtitle)
 	
@@ -241,7 +272,7 @@ func _build_ui() -> void:
 	var start_x = 80
 	for i in range(4):
 		var card = Panel.new()
-		card.position = Vector2(start_x + i * (col_width + 20), 150)
+		card.position = Vector2(start_x + i * (col_width + 20), 145)
 		card.size = Vector2(col_width, 340)
 		ui_lobby_panel.add_child(card)
 		
@@ -273,28 +304,53 @@ func _build_ui() -> void:
 		key_hint.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75))
 		card.add_child(key_hint)
 	
-	# Power-Up Toggle Bar in Lobby (Option A: Deaktivierbar im Hauptmenü)
-	ui_powerup_card = Panel.new()
-	ui_powerup_card.position = Vector2(80, 505)
-	ui_powerup_card.size = Vector2(1100, 50)
-	ui_lobby_panel.add_child(ui_powerup_card)
+	# Kompakte Optionsleiste: Match-Modus, Power-Ups, Bestenliste (y=500, H=50)
+	ui_options_card = Panel.new()
+	ui_options_card.position = Vector2(80, 500)
+	ui_options_card.size = Vector2(1100, 50)
+	ui_lobby_panel.add_child(ui_options_card)
 	
+	# Match / Tournament Mode Button
+	ui_mode_label = Label.new()
+	ui_mode_label.position = Vector2(15, 10)
+	ui_mode_label.size = Vector2(250, 30)
+	ui_mode_label.add_theme_font_size_override("font_size", 15)
+	ui_options_card.add_child(ui_mode_label)
+	
+	ui_mode_toggle_btn = Button.new()
+	ui_mode_toggle_btn.position = Vector2(265, 7)
+	ui_mode_toggle_btn.size = Vector2(150, 36)
+	ui_mode_toggle_btn.text = "MODUS [M]"
+	ui_mode_toggle_btn.add_theme_font_size_override("font_size", 14)
+	ui_mode_toggle_btn.pressed.connect(cycle_match_mode)
+	ui_options_card.add_child(ui_mode_toggle_btn)
+	
+	# Power-Ups Toggle Button
 	ui_powerup_label = Label.new()
-	ui_powerup_label.position = Vector2(20, 10)
-	ui_powerup_label.size = Vector2(780, 30)
-	ui_powerup_label.add_theme_font_size_override("font_size", 18)
-	ui_powerup_card.add_child(ui_powerup_label)
+	ui_powerup_label.position = Vector2(430, 10)
+	ui_powerup_label.size = Vector2(250, 30)
+	ui_powerup_label.add_theme_font_size_override("font_size", 15)
+	ui_options_card.add_child(ui_powerup_label)
 	
 	ui_powerup_toggle_btn = Button.new()
-	ui_powerup_toggle_btn.position = Vector2(820, 7)
-	ui_powerup_toggle_btn.size = Vector2(260, 36)
-	ui_powerup_toggle_btn.add_theme_font_size_override("font_size", 16)
+	ui_powerup_toggle_btn.position = Vector2(685, 7)
+	ui_powerup_toggle_btn.size = Vector2(170, 36)
+	ui_powerup_toggle_btn.add_theme_font_size_override("font_size", 14)
 	ui_powerup_toggle_btn.pressed.connect(toggle_powerups)
-	ui_powerup_card.add_child(ui_powerup_toggle_btn)
+	ui_options_card.add_child(ui_powerup_toggle_btn)
 	
-	# Arena Selection Card in Lobby
+	# Bestenliste Modal Button
+	ui_leaderboard_btn = Button.new()
+	ui_leaderboard_btn.position = Vector2(870, 7)
+	ui_leaderboard_btn.size = Vector2(215, 36)
+	ui_leaderboard_btn.text = "🏆 BESTENLISTE [L]"
+	ui_leaderboard_btn.add_theme_font_size_override("font_size", 14)
+	ui_leaderboard_btn.pressed.connect(toggle_leaderboard)
+	ui_options_card.add_child(ui_leaderboard_btn)
+	
+	# Arena Selection Card in Lobby (y=560, H=95)
 	ui_arena_card = Panel.new()
-	ui_arena_card.position = Vector2(80, 565)
+	ui_arena_card.position = Vector2(80, 560)
 	ui_arena_card.size = Vector2(1100, 95)
 	ui_lobby_panel.add_child(ui_arena_card)
 	
@@ -314,11 +370,62 @@ func _build_ui() -> void:
 	ui_arena_desc_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
 	ui_arena_card.add_child(ui_arena_desc_label)
 	
+	canvas.add_child(ui_lobby_panel)
+	
+	# --- Modale Bestenliste (Overlay) ---
+	ui_leaderboard_modal = Control.new()
+	ui_leaderboard_modal.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ui_leaderboard_modal.visible = false
+	
+	var lb_bg = ColorRect.new()
+	lb_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lb_bg.color = Color(0.04, 0.06, 0.1, 0.94)
+	ui_leaderboard_modal.add_child(lb_bg)
+	
+	var lb_panel = Panel.new()
+	lb_panel.position = Vector2(140, 60)
+	lb_panel.size = Vector2(1000, 600)
+	ui_leaderboard_modal.add_child(lb_panel)
+	
+	var lb_title = Label.new()
+	lb_title.text = "🏆 ROLL & RUMBLE 3D — EWIGE BESTENLISTE 🏆"
+	lb_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lb_title.position = Vector2(20, 20)
+	lb_title.size = Vector2(960, 45)
+	lb_title.add_theme_font_size_override("font_size", 28)
+	lb_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	lb_panel.add_child(lb_title)
+	
+	ui_leaderboard_content_label = Label.new()
+	ui_leaderboard_content_label.position = Vector2(40, 80)
+	ui_leaderboard_content_label.size = Vector2(920, 420)
+	ui_leaderboard_content_label.add_theme_font_size_override("font_size", 18)
+	ui_leaderboard_content_label.add_theme_color_override("font_color", Color(0.92, 0.95, 1.0))
+	lb_panel.add_child(ui_leaderboard_content_label)
+	
+	ui_leaderboard_close_btn = Button.new()
+	ui_leaderboard_close_btn.position = Vector2(620, 520)
+	ui_leaderboard_close_btn.size = Vector2(340, 48)
+	ui_leaderboard_close_btn.text = "SCHLIESSEN [ESC / L]"
+	ui_leaderboard_close_btn.add_theme_font_size_override("font_size", 18)
+	ui_leaderboard_close_btn.pressed.connect(func(): toggle_leaderboard(false))
+	lb_panel.add_child(ui_leaderboard_close_btn)
+	
+	ui_leaderboard_reset_btn = Button.new()
+	ui_leaderboard_reset_btn.position = Vector2(40, 520)
+	ui_leaderboard_reset_btn.size = Vector2(260, 48)
+	ui_leaderboard_reset_btn.text = "Statistiken zurücksetzen"
+	ui_leaderboard_reset_btn.add_theme_font_size_override("font_size", 16)
+	ui_leaderboard_reset_btn.pressed.connect(_on_leaderboard_reset_pressed)
+	lb_panel.add_child(ui_leaderboard_reset_btn)
+	
+	canvas.add_child(ui_leaderboard_modal)
+	add_child(canvas)
+	
 	_update_lobby_ui()
 	_update_arena_ui()
 	_update_powerup_ui()
-	canvas.add_child(ui_lobby_panel)
-	add_child(canvas)
+	_update_mode_ui()
 
 func _update_lobby_ui() -> void:
 	for i in range(players.size()):
@@ -370,6 +477,11 @@ func toggle_p2_bot() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if state_manager.current_state == RollStateManager.MatchState.LOBBY:
+			if ui_leaderboard_modal and ui_leaderboard_modal.visible:
+				if event.keycode == KEY_ESCAPE or event.keycode == KEY_L:
+					toggle_leaderboard(false)
+					return
+			
 			if event.keycode == KEY_1:
 				cycle_player_slot(0)
 			elif event.keycode == KEY_2:
@@ -382,6 +494,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				cycle_arena()
 			elif event.keycode == KEY_P:
 				toggle_powerups()
+			elif event.keycode == KEY_M:
+				cycle_match_mode()
+			elif event.keycode == KEY_L:
+				toggle_leaderboard()
 			elif event.keycode == KEY_SPACE or event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
 				start_match_from_lobby()
 		else:
@@ -389,12 +505,50 @@ func _unhandled_input(event: InputEvent) -> void:
 				return_to_lobby()
 			elif event.keycode == KEY_B:
 				toggle_p2_bot()
+			elif event.keycode == KEY_SPACE or event.keycode == KEY_ENTER:
+				if state_manager.current_state == RollStateManager.MatchState.ROUND_OVER:
+					state_manager.start_next_round()
+				elif state_manager.current_state == RollStateManager.MatchState.MATCH_OVER:
+					return_to_lobby()
 
 func cycle_arena() -> void:
 	var total_types = BaseArena.ArenaType.values().size()
 	selected_arena_type = ((int(selected_arena_type) + 1) % total_types) as BaseArena.ArenaType
 	_load_arena(selected_arena_type)
 	_update_arena_ui()
+
+func cycle_match_mode() -> void:
+	state_manager.cycle_match_mode()
+	_update_mode_ui()
+
+func _update_mode_ui() -> void:
+	if not ui_mode_label:
+		return
+	ui_mode_label.text = "🏆 %s" % state_manager.get_mode_name()
+	if state_manager.current_match_mode == RollStateManager.MatchMode.SINGLE_MATCH:
+		ui_mode_label.add_theme_color_override("font_color", Color(0.8, 0.9, 1.0))
+	else:
+		ui_mode_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+
+func toggle_leaderboard(show: Variant = null) -> void:
+	if not ui_leaderboard_modal:
+		return
+	if show == null:
+		ui_leaderboard_modal.visible = not ui_leaderboard_modal.visible
+	else:
+		ui_leaderboard_modal.visible = bool(show)
+	
+	if ui_leaderboard_modal.visible:
+		_update_leaderboard_content()
+
+func _update_leaderboard_content() -> void:
+	if ui_leaderboard_content_label and leaderboard:
+		ui_leaderboard_content_label.text = leaderboard.get_formatted_summary()
+
+func _on_leaderboard_reset_pressed() -> void:
+	if leaderboard:
+		leaderboard.reset_all_stats()
+		_update_leaderboard_content()
 
 func _load_arena(type: BaseArena.ArenaType) -> void:
 	if current_arena:
@@ -451,41 +605,34 @@ func start_match_from_lobby() -> void:
 		ui_status_label.text = "Mindestens 2 Spieler erforderlich!"
 		return
 	
+	_clear_trophy()
 	ui_lobby_panel.visible = false
 	ui_hud_container.visible = true
 	
-	if current_arena:
-		current_arena.reset_arena()
-	
-	var spawn_spots = current_arena.get_spawn_positions(players.size()) if current_arena else []
-	for i in range(players.size()):
-		var p = players[i]
-		if p.control_type != PlayerBall.ControlType.OFF:
-			var spot = spawn_spots[i] if i < spawn_spots.size() else p.initial_spawn_point
-			p.respawn(spot)
-			p.freeze = true
-	
-	state_manager.start_match(active_ids)
+	state_manager.start_series(active_ids)
 
 func return_to_lobby() -> void:
+	_clear_trophy()
+	if camera:
+		camera.target_nodes = players
 	for p in players:
 		p.freeze = true
 	state_manager.enter_lobby(_get_active_player_ids())
 	ui_lobby_panel.visible = true
 	_update_lobby_ui()
 	_update_arena_ui()
+	_update_mode_ui()
 
 func restart_game() -> void:
-	if current_arena:
-		current_arena.reset_arena()
-	var spawn_spots = current_arena.get_spawn_positions(players.size()) if current_arena else []
-	for i in range(players.size()):
-		var p = players[i]
-		if p.control_type != PlayerBall.ControlType.OFF:
-			var spot = spawn_spots[i] if i < spawn_spots.size() else p.initial_spawn_point
-			p.respawn(spot)
-			p.freeze = true
+	_clear_trophy()
+	if camera:
+		camera.target_nodes = players
 	state_manager.reset_match()
+
+func _clear_trophy() -> void:
+	if is_instance_valid(active_trophy):
+		active_trophy.queue_free()
+		active_trophy = null
 
 func _get_active_player_ids() -> Array:
 	var ids: Array = []
@@ -507,6 +654,14 @@ func _process(delta: float) -> void:
 			ui_status_label.text = str(sec)
 		else:
 			ui_status_label.text = "RUMBLE!"
+	elif state_manager.current_state == RollStateManager.MatchState.ROUND_OVER:
+		var sec = int(ceil(state_manager.round_transition_timer))
+		var r_win = state_manager.get_winner()
+		ui_status_label.text = "RUNDE %d BEENDET!\n🏆 SPIELER %d GEWINNT DIE RUNDE! 🏆\nNächste Runde in %d s... [SPACE]" % [
+			state_manager.current_round_number,
+			r_win,
+			sec
+		]
 	
 	if Input.is_action_just_pressed("restart") and state_manager.current_state != RollStateManager.MatchState.LOBBY:
 		restart_game()
@@ -522,6 +677,7 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 	match new_state:
 		RollStateManager.MatchState.LOBBY:
 			ui_status_label.visible = false
+			_clear_trophy()
 			if powerup_spawner:
 				powerup_spawner.clear_tokens()
 				powerup_spawner.enabled = false
@@ -531,11 +687,22 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 		RollStateManager.MatchState.WARMUP:
 			ui_status_label.visible = true
 			ui_status_label.text = "3"
+			_clear_trophy()
+			if camera:
+				camera.target_nodes = players
 			if powerup_spawner:
 				powerup_spawner.clear_tokens()
 				powerup_spawner.enabled = false
-			for p in players:
+			
+			# Arena zurücksetzen & Spieler an Spawn-Positionen aufstellen
+			if current_arena:
+				current_arena.reset_arena()
+			var spawn_spots = current_arena.get_spawn_positions(players.size()) if current_arena else []
+			for i in range(players.size()):
+				var p = players[i]
 				if p.control_type != PlayerBall.ControlType.OFF:
+					var spot = spawn_spots[i] if i < spawn_spots.size() else p.initial_spawn_point
+					p.respawn(spot)
 					p.freeze = true
 				p.clear_powerup()
 		RollStateManager.MatchState.PLAYING:
@@ -543,25 +710,80 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 			if powerup_spawner:
 				powerup_spawner.enabled = powerups_enabled
 				powerup_spawner.reset_timer()
-			# Unfreeze all active players!
 			for p in players:
 				if p.control_type != PlayerBall.ControlType.OFF:
 					p.freeze = false
 		RollStateManager.MatchState.SUDDEN_DEATH:
 			ui_status_label.visible = true
 			ui_status_label.text = "🔥 SUDDEN DEATH! 🔥"
+		RollStateManager.MatchState.ROUND_OVER:
+			ui_status_label.visible = true
+			if sound_manager:
+				sound_manager.play_round_win()
+			if camera:
+				camera.add_trauma(0.35)
+			if powerup_spawner:
+				powerup_spawner.clear_tokens()
+				powerup_spawner.enabled = false
+			for p in players:
+				p.freeze = true
+				p.clear_powerup()
 		RollStateManager.MatchState.MATCH_OVER:
 			ui_status_label.visible = true
 			if powerup_spawner:
 				powerup_spawner.clear_tokens()
 				powerup_spawner.enabled = false
 			for p in players:
+				p.freeze = true
 				p.clear_powerup()
-			var w = state_manager.get_winner()
-			if w > 0:
-				ui_status_label.text = "🏆 PLAYER %d WINS! 🏆" % w
-			else:
-				ui_status_label.text = "DRAW! Press [R] to rematch"
+
+func _on_round_finished(round_winner_id: int, current_round: int) -> void:
+	pass
+
+func _on_tournament_finished(champion_id: int) -> void:
+	if sound_manager:
+		sound_manager.play_fanfare()
+	if camera:
+		camera.add_trauma(0.65)
+	
+	# 3D Pokal-Zeremonie spawnen
+	_clear_trophy()
+	active_trophy = Trophy3D.new()
+	var spawn_pos = Vector3(0, 1.2, 0)
+	if champion_id > 0 and champion_id <= players.size():
+		var winner_ball = players[champion_id - 1]
+		spawn_pos = winner_ball.position + Vector3(0, 1.4, 0)
+		if camera:
+			camera.target_nodes = [winner_ball]
+	active_trophy.position = spawn_pos
+	add_child(active_trophy)
+	
+	if impact_particles:
+		impact_particles.spawn_sparks(spawn_pos, 12.0)
+	
+	if champion_id > 0:
+		ui_status_label.text = "👑 TOURNAMENT CHAMPION: PLAYER %d! 👑\n[SPACE / ESC]: Zurück zur Lobby" % champion_id
+	else:
+		ui_status_label.text = "UNENTSCHIEDEN!\n[SPACE / ESC]: Zurück zur Lobby"
+
+func _on_series_score_updated(series_scores: Dictionary) -> void:
+	if not ui_series_label:
+		return
+	if state_manager.current_match_mode == RollStateManager.MatchMode.SINGLE_MATCH:
+		ui_series_label.text = "★ EINZELMATCH (60.0s)"
+		return
+	var parts: Array[String] = []
+	for p in players:
+		if p.control_type != PlayerBall.ControlType.OFF:
+			var w_count = series_scores.get(p.player_id, 0)
+			parts.append("P%d: %d 🏆" % [p.player_id, w_count])
+	var target_wins = state_manager.get_required_wins()
+	ui_series_label.text = "★ %s (Ziel: %d Siege) — %s — RUNDE %d" % [
+		state_manager.get_mode_name(),
+		target_wins,
+		"  |  ".join(parts),
+		state_manager.current_round_number
+	]
 
 func _on_score_updated(player_id: int, new_score: int) -> void:
 	if ui_score_labels.has(player_id):
@@ -621,15 +843,10 @@ func _update_powerup_ui() -> void:
 	if not ui_powerup_label or not ui_powerup_toggle_btn:
 		return
 	if powerups_enabled:
-		ui_powerup_label.text = "⚡ POWER-UPS: AKTIV (6 Archetypen: Amboss, Stachel, Nitro, Geist, Eis, Magnet)"
+		ui_powerup_label.text = "⚡ POWER-UPS: AKTIV"
 		ui_powerup_label.add_theme_color_override("font_color", Color(0.4, 0.95, 0.5))
 		ui_powerup_toggle_btn.text = "DEAKTIVIEREN [P]"
 	else:
-		ui_powerup_label.text = "🚫 POWER-UPS: DEAKTIVIERT (Klassisches pures Sumo-Rumble)"
+		ui_powerup_label.text = "🚫 POWER-UPS: AUS"
 		ui_powerup_label.add_theme_color_override("font_color", Color(0.9, 0.45, 0.45))
 		ui_powerup_toggle_btn.text = "AKTIVIEREN [P]"
-
-
-
-
-

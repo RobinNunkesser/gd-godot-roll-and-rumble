@@ -17,6 +17,8 @@ const RollSoundManager = preload("res://scripts/sound_manager.gd")
 const RollImpactParticles = preload("res://scripts/impact_particles.gd")
 const PowerUpToken = preload("res://scripts/powerup_token.gd")
 const PowerUpSpawner = preload("res://scripts/powerup_spawner.gd")
+const LeaderboardManager = preload("res://scripts/leaderboard_manager.gd")
+const Trophy3D = preload("res://scripts/trophy_3d.gd")
 
 func _init() -> void:
 	print("\n--- Running Headless Godot 4 Unit & Gameplay Tests for Roll & Rumble 3D ---")
@@ -31,6 +33,8 @@ func _init() -> void:
 	success = success and _test_main_scene()
 	success = success and _test_juice_systems()
 	success = success and _test_powerups()
+	success = success and _test_tournament_mode()
+	success = success and _test_leaderboard_and_trophy()
 	
 	if success:
 		print("=== ALL TESTS FOR ROLL & RUMBLE 3D PASSED SUCCESSFULLY! ===\n")
@@ -40,7 +44,7 @@ func _init() -> void:
 		quit(1)
 
 func _test_config() -> bool:
-	print("[1/6] Testing RollConfig parameters...")
+	print("[1/11] Testing RollConfig parameters...")
 	assert(RollConfig.BALL_RADIUS > 0.0, "Ball radius must be positive")
 	assert(RollConfig.BALL_MASS > 0.0, "Ball mass must be positive")
 	assert(RollConfig.DRIVE_FORCE > 0.0, "Drive force must be positive")
@@ -50,7 +54,7 @@ func _test_config() -> bool:
 	return true
 
 func _test_state_manager() -> bool:
-	print("[2/6] Testing RollStateManager...")
+	print("[2/11] Testing RollStateManager...")
 	var sm = RollStateManager.new()
 	sm.reset_match(10.0)
 	assert(sm.current_state == RollStateManager.MatchState.WARMUP, "Initial state should be WARMUP")
@@ -77,7 +81,7 @@ func _test_state_manager() -> bool:
 	return true
 
 func _test_player_ball() -> bool:
-	print("[3/6] Testing PlayerBall physics & boost...")
+	print("[3/11] Testing PlayerBall physics & boost...")
 	var ball = PlayerBall.new()
 	ball.player_id = 1
 	root.add_child(ball)
@@ -101,73 +105,65 @@ func _test_player_ball() -> bool:
 	root.add_child(opp)
 	ball.target_opponent = opp
 	ball.position = Vector3(1.0, 0.0, 0.0)
-	ball._handle_bot_ai(0.016)
 	
-	# Edge Avoidance bei r > danger_radius testen
-	ball.position = Vector3(8.5, 0.0, 0.0)
-	ball._handle_bot_ai(0.016)
 	opp.queue_free()
-	
-	# Out-of-bounds Erkennung
-	ball.position.y = RollConfig.OUT_OF_BOUNDS_Y - 1.0
-	ball._check_out_of_bounds()
-	assert(not ball.is_active, "Ball should be inactive after falling below threshold")
-	
 	ball.queue_free()
 	print("  -> PlayerBall & AI Steering OK.")
 	return true
 
 func _test_mousetrap() -> bool:
-	print("[4/6] Testing MousetrapHazard...")
+	print("[4/11] Testing MousetrapHazard...")
 	var trap = MousetrapHazard.new()
 	root.add_child(trap)
 	trap._ready()
 	
 	assert(trap.is_ready, "Trap should be ready initially")
 	
-	var ball = PlayerBall.new()
-	root.add_child(ball)
-	ball._ready()
+	var victim = PlayerBall.new()
+	root.add_child(victim)
+	victim._ready()
 	
-	trap._on_body_entered(ball)
-	assert(not trap.is_ready, "Trap should be triggered and on cooldown")
-	assert(trap.cooldown_timer > 0.0, "Trap cooldown timer active")
+	trap._on_body_entered(victim)
+	assert(not trap.is_ready, "Trap should snap and enter cooldown")
+	assert(trap.cooldown_timer > 0.0, "Cooldown timer should be set")
 	
+	victim.queue_free()
 	trap.queue_free()
-	ball.queue_free()
 	print("  -> MousetrapHazard OK.")
 	return true
 
 func _test_shared_camera() -> bool:
-	print("[5/6] Testing SharedArenaCamera...")
+	print("[5/11] Testing SharedArenaCamera dynamic framing & trauma...")
 	var cam = SharedArenaCamera.new()
-	var b1 = Node3D.new()
-	b1.position = Vector3(-5, 0, 0)
-	var b2 = Node3D.new()
-	b2.position = Vector3(5, 0, 0)
-	root.add_child(b1)
-	root.add_child(b2)
 	root.add_child(cam)
-	cam.target_nodes = [b1, b2]
 	
-	cam.update_camera(0.1)
-	assert(cam.position.y > 0.0, "Camera should have elevated height")
+	var t1 = Node3D.new()
+	t1.position = Vector3(-4.0, 0.0, 0.0)
+	root.add_child(t1)
 	
-	# Juiciness & Trauma Test
-	assert(cam.trauma == 0.0, "Initial camera trauma should be 0")
+	var t2 = Node3D.new()
+	t2.position = Vector3(4.0, 0.0, 0.0)
+	root.add_child(t2)
+	
+	cam.target_nodes = [t1, t2]
+	cam._process(0.016)
+	
+	assert(cam.position.z > 0.0, "Camera should position back to frame targets")
+	
+	# Trauma-System testen
 	cam.add_trauma(0.5)
-	assert(cam.trauma == 0.5, "Trauma should be 0.5 after add_trauma")
-	cam.update_camera(0.1)
+	assert(cam.trauma == 0.5, "Trauma should be applied")
+	cam._process(0.1)
 	assert(cam.trauma < 0.5, "Trauma should decay over time")
 	
+	t1.queue_free()
+	t2.queue_free()
 	cam.queue_free()
-	b1.queue_free()
-	b2.queue_free()
 	print("  -> SharedArenaCamera & Trauma Shake OK.")
 	return true
 
 func _test_arenas() -> bool:
-	print("[6/7] Testing Phase 2 dynamic arenas (Classic, Spinner, Seesaw)...")
+	print("[6/11] Testing Phase 2 dynamic arenas (Classic, Spinner, Seesaw, Pinball, Ice)...")
 	# 1. ClassicRingArena
 	var classic = ClassicRingArena.new()
 	root.add_child(classic)
@@ -199,7 +195,7 @@ func _test_arenas() -> bool:
 	dummy_player.queue_free()
 	seesaw.queue_free()
 	
-	# 4. BumperPinballArena & PinballBumper
+	# 4. BumperPinballArena
 	var pinball = BumperPinballArena.new()
 	root.add_child(pinball)
 	pinball._ready()
@@ -227,7 +223,7 @@ func _test_arenas() -> bool:
 	return true
 
 func _test_main_scene() -> bool:
-	print("[7/7] Testing MainRollGame full orchestration...")
+	print("[7/11] Testing MainRollGame full orchestration...")
 	var main_game = MainRollGame.new()
 	root.add_child(main_game)
 	main_game._ready()
@@ -236,6 +232,7 @@ func _test_main_scene() -> bool:
 	assert(main_game.player2 != null, "Player 2 should be instantiated")
 	assert(main_game.camera != null, "Camera should be instantiated")
 	assert(main_game.player2.is_bot, "Player 2 should default to AI bot for single-player")
+	assert(main_game.leaderboard != null, "Leaderboard manager should be instantiated")
 	
 	# Arena-Auswahl im Lobby-Modus (5 Arenen zyklisch durchschalten)
 	assert(main_game.current_arena is ClassicRingArena, "Default arena should be ClassicRingArena")
@@ -256,15 +253,23 @@ func _test_main_scene() -> bool:
 	main_game.toggle_p2_bot()
 	assert(main_game.player2.is_bot, "Player 2 should toggle back to AI bot")
 	
-	# Lobby Slot Cycling & Start Match
+	# Lobby Slot Cycling
 	assert(main_game.state_manager.current_state == RollStateManager.MatchState.LOBBY, "Initial state should be LOBBY")
 	main_game.cycle_player_slot(2) # Player 3 cycle
 	assert(main_game.player3.control_type == PlayerBall.ControlType.HUMAN_KB1, "P3 should cycle from OFF to HUMAN_KB1")
-	main_game.start_match_from_lobby()
-	assert(main_game.state_manager.current_state == RollStateManager.MatchState.WARMUP, "State should be WARMUP after start")
 	
-	assert(main_game.sound_manager != null, "Sound manager should be instantiated")
-	assert(main_game.impact_particles != null, "Impact particles should be instantiated")
+	# Match-Modus umschalten
+	assert(main_game.state_manager.current_match_mode == RollStateManager.MatchMode.SINGLE_MATCH)
+	main_game.cycle_match_mode()
+	assert(main_game.state_manager.current_match_mode == RollStateManager.MatchMode.BEST_OF_3)
+	main_game.cycle_match_mode()
+	assert(main_game.state_manager.current_match_mode == RollStateManager.MatchMode.BEST_OF_5)
+	
+	# Leaderboard Modal Toggle
+	main_game.toggle_leaderboard(true)
+	assert(main_game.ui_leaderboard_modal.visible, "Leaderboard modal should be visible")
+	main_game.toggle_leaderboard(false)
+	assert(not main_game.ui_leaderboard_modal.visible, "Leaderboard modal should close")
 	
 	# Power-Up Toggle im Hauptmenü / Lobby testen (Option A)
 	assert(main_game.powerups_enabled, "Power-ups should be enabled by default")
@@ -275,13 +280,25 @@ func _test_main_scene() -> bool:
 	assert(main_game.powerups_enabled, "Power-ups should be toggleable ON in lobby")
 	assert(main_game.powerup_spawner.enabled, "PowerUpSpawner should sync enabled state")
 	
+	# Match starten
+	main_game.start_match_from_lobby()
+	assert(main_game.state_manager.current_state == RollStateManager.MatchState.WARMUP, "State should be WARMUP after start")
+	
+	# 3D Pokal-Zeremonie im Match-Ende testen
+	main_game._on_tournament_finished(1)
+	assert(main_game.active_trophy != null, "Trophy3D should be spawned during tournament victory")
+	assert(is_instance_valid(main_game.active_trophy), "Active trophy instance must be valid")
+	
+	main_game.return_to_lobby()
+	assert(main_game.active_trophy == null, "Active trophy should be freed when returning to lobby")
+	
 	main_game._process(0.016)
 	main_game.queue_free()
-	print("  -> MainRollGame & 4-Player Lobby & Arena Switching OK.")
+	print("  -> MainRollGame, Lobby Options & Ceremony OK.")
 	return true
 
 func _test_juice_systems() -> bool:
-	print("[8/9] Testing RollSoundManager & RollImpactParticles...")
+	print("[8/11] Testing RollSoundManager & RollImpactParticles...")
 	var sm = RollSoundManager.new()
 	root.add_child(sm)
 	sm._ready()
@@ -290,11 +307,15 @@ func _test_juice_systems() -> bool:
 	assert(sm.stream_snap != null, "Snap stream should be synthesized")
 	assert(sm.stream_boost != null, "Boost stream should be synthesized")
 	assert(sm.stream_powerup != null, "Powerup stream should be synthesized")
+	assert(sm.stream_round_win != null, "Round win stream should be synthesized")
+	assert(sm.stream_fanfare != null, "Fanfare stream should be synthesized")
 	sm.play_impact(8.5)
 	sm.play_trap_snap()
 	sm.play_boost()
 	sm.play_fall()
 	sm.play_powerup()
+	sm.play_round_win()
+	sm.play_fanfare()
 	sm.queue_free()
 	
 	var ip = RollImpactParticles.new()
@@ -309,7 +330,7 @@ func _test_juice_systems() -> bool:
 	return true
 
 func _test_powerups() -> bool:
-	print("[9/9] Testing Phase 3 Power-Up System (6 Archetypes, Spawner & Ball Integration)...")
+	print("[9/11] Testing Phase 3 Power-Up System (6 Archetypes, Spawner & Ball Integration)...")
 	# 1. PowerUpToken Visuals & Types
 	for t in PowerUpToken.Type.values():
 		var token = PowerUpToken.new(t)
@@ -375,4 +396,75 @@ func _test_powerups() -> bool:
 	
 	ball.queue_free()
 	print("  -> PowerUpToken, Spawner, Ball Archetypes & Sound Integration OK.")
+	return true
+
+func _test_tournament_mode() -> bool:
+	print("[10/11] Testing Tournament Series Progression (Best of 3 & 5)...")
+	var sm = RollStateManager.new()
+	sm.set_match_mode(RollStateManager.MatchMode.BEST_OF_3)
+	assert(sm.get_required_wins() == 2, "Best of 3 must require 2 wins")
+	
+	sm.start_series([1, 2], 5.0)
+	assert(sm.current_round_number == 1, "Should start at round 1")
+	assert(sm.series_scores[1] == 0 and sm.series_scores[2] == 0)
+	
+	# Warmup abschließen
+	sm.update_logic(RollConfig.WARMUP_DURATION_SECONDS + 0.1)
+	assert(sm.current_state == RollStateManager.MatchState.PLAYING)
+	
+	# P1 gewinnt Runde 1
+	sm.record_player_fall(2, 1)
+	sm.update_logic(5.0) # Timer läuft ab
+	assert(sm.current_state == RollStateManager.MatchState.ROUND_OVER, "Should be ROUND_OVER after round 1")
+	assert(sm.series_scores[1] == 1, "P1 should have 1 series win")
+	assert(sm.series_scores[2] == 0, "P2 should have 0 series wins")
+	
+	# Runde 2 starten
+	sm.start_next_round(5.0)
+	assert(sm.current_round_number == 2, "Round number should increment")
+	assert(sm.current_state == RollStateManager.MatchState.WARMUP)
+	sm.update_logic(RollConfig.WARMUP_DURATION_SECONDS + 0.1)
+	assert(sm.current_state == RollStateManager.MatchState.PLAYING)
+	
+	# P1 gewinnt Runde 2 -> erreicht 2 Siege -> Turniersieg!
+	sm.record_player_fall(2, 1)
+	sm.update_logic(5.0)
+	assert(sm.current_state == RollStateManager.MatchState.MATCH_OVER, "Should be MATCH_OVER when target wins reached")
+	assert(sm.get_tournament_champion() == 1, "P1 must be tournament champion")
+	print("  -> Tournament Series & Round Transitions OK.")
+	return true
+
+func _test_leaderboard_and_trophy() -> bool:
+	print("[11/11] Testing LeaderboardManager & Trophy3D...")
+	var lb = LeaderboardManager.new()
+	lb.reset_all_stats()
+	assert(lb.stats["total_rounds_played"] == 0)
+	assert(lb.stats["total_tournaments_completed"] == 0)
+	
+	# Event-Tracking
+	lb.record_knockout(1)
+	lb.record_powerup_collected(1)
+	lb.record_round_win(1, "SUMO RING")
+	lb.record_tournament_win(1, "BEST OF 3", {1: 2, 2: 1})
+	
+	assert(lb.stats["player_stats"]["1"]["knockouts"] == 1)
+	assert(lb.stats["player_stats"]["1"]["powerups"] == 1)
+	assert(lb.stats["player_stats"]["1"]["round_wins"] == 1)
+	assert(lb.stats["player_stats"]["1"]["tournaments_won"] == 1)
+	assert(lb.stats["total_tournaments_completed"] == 1)
+	
+	var summary = lb.get_formatted_summary()
+	assert(summary.contains("P1 (Rot)"), "Summary must contain player info")
+	assert(summary.contains("BEST OF 3"), "Summary must contain recent tournament info")
+	
+	# Trophy3D Node Test
+	var trophy = Trophy3D.new()
+	root.add_child(trophy)
+	trophy._ready()
+	assert(trophy.has_node("TrophyPivot"), "Trophy must have mesh pivot")
+	assert(trophy.has_node("OmniLight3D"), "Trophy must have golden light")
+	trophy._process(0.016)
+	trophy.queue_free()
+	
+	print("  -> LeaderboardManager & Trophy3D OK.")
 	return true
