@@ -2,6 +2,7 @@ class_name PlayerBall
 extends RigidBody3D
 
 const RollConfig = preload("res://scripts/config.gd")
+const PowerUpToken = preload("res://scripts/powerup_token.gd")
 
 enum ControlType {
 	OFF,
@@ -36,8 +37,14 @@ var initial_spawn_point: Vector3 = Vector3.ZERO
 
 var _mesh_instance: MeshInstance3D
 var _eyes_pivot: Node3D
+var _powerup_tag: Label3D
 var _pending_teleport: bool = false
 var _teleport_target: Vector3 = Vector3.ZERO
+
+# Phase 3: Aktives Power-Up
+var active_powerup: int = -1
+var powerup_timer: float = 0.0
+var nitro_charges: int = 0
 
 signal fell_off(player_id: int, last_hitter_id: int)
 signal impact_occurred(force: float, pos: Vector3)
@@ -126,6 +133,16 @@ func _setup_visuals() -> void:
 			pupil_mat.albedo_color = Color.BLACK
 			pupil.material_override = pupil_mat
 			eye.add_child(pupil)
+	
+	if not has_node("PowerUpTag"):
+		_powerup_tag = Label3D.new()
+		_powerup_tag.name = "PowerUpTag"
+		_powerup_tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_powerup_tag.font_size = 28
+		_powerup_tag.pixel_size = 0.007
+		_powerup_tag.position = Vector3(0, 0.95, 0)
+		_powerup_tag.visible = false
+		add_child(_powerup_tag)
 
 func _physics_process(delta: float) -> void:
 	if not is_active:
@@ -134,6 +151,29 @@ func _physics_process(delta: float) -> void:
 			if respawn_timer <= 0.0:
 				respawn()
 		return
+
+	# Power-Up Timer & Effekte
+	if active_powerup >= 0:
+		powerup_timer -= delta
+		if powerup_timer <= 0.0:
+			clear_powerup()
+		elif active_powerup == int(PowerUpToken.Type.GRAVITY_MAGNET) and is_active:
+			var my_pos = global_position if is_inside_tree() else position
+			for opp in potential_targets:
+				if is_instance_valid(opp) and opp != self and opp.is_active:
+					var opp_pos = opp.global_position if (is_inside_tree() and opp.is_inside_tree()) else opp.position
+					var diff = my_pos - opp_pos
+					var dist = diff.length()
+					if dist < RollConfig.POWERUP_MAGNET_RADIUS and dist > 0.5:
+						var factor = 1.0 - (dist / RollConfig.POWERUP_MAGNET_RADIUS)
+						opp.apply_central_force(diff.normalized() * (RollConfig.POWERUP_MAGNET_FORCE * factor))
+		elif active_powerup == int(PowerUpToken.Type.ICE_TRAIL) and is_active:
+			var my_pos = global_position if is_inside_tree() else position
+			for opp in potential_targets:
+				if is_instance_valid(opp) and opp != self and opp.is_active:
+					var opp_pos = opp.global_position if (is_inside_tree() and opp.is_inside_tree()) else opp.position
+					if my_pos.distance_to(opp_pos) < 3.2:
+						opp.apply_central_force(-opp.linear_velocity * 0.45)
 
 	if boost_cooldown_timer > 0.0:
 		boost_cooldown_timer -= delta
@@ -282,15 +322,115 @@ func set_control_type(new_type: ControlType) -> void:
 		collision_mask = 1
 
 func trigger_boost(input_vec: Vector2) -> void:
-	boost_cooldown_timer = RollConfig.BOOST_COOLDOWN
 	var boost_dir = Vector3.FORWARD
 	if input_vec.length_squared() > 0.01:
 		boost_dir = Vector3(input_vec.x, 0.0, input_vec.y).normalized()
 	elif linear_velocity.length_squared() > 0.1:
 		boost_dir = Vector3(linear_velocity.x, 0.0, linear_velocity.z).normalized()
 	
+	if active_powerup == int(PowerUpToken.Type.NITRO_JET) and nitro_charges > 0:
+		nitro_charges -= 1
+		boost_cooldown_timer = 0.0 # Bypasses cooldown!
+		if _powerup_tag:
+			_powerup_tag.text = "🚀 NITRO (x%d)" % nitro_charges
+		apply_central_impulse(boost_dir * RollConfig.BOOST_IMPULSE * 1.35)
+		boost_triggered.emit(global_position if is_inside_tree() else position, boost_dir)
+		if nitro_charges <= 0:
+			clear_powerup()
+		return
+	
+	boost_cooldown_timer = RollConfig.BOOST_COOLDOWN
 	apply_central_impulse(boost_dir * RollConfig.BOOST_IMPULSE)
 	boost_triggered.emit(global_position if is_inside_tree() else position, boost_dir)
+
+func apply_powerup(type: PowerUpToken.Type, duration: float) -> void:
+	clear_powerup()
+	active_powerup = int(type)
+	powerup_timer = duration
+	
+	if not _mesh_instance:
+		return
+	
+	var mat = StandardMaterial3D.new()
+	match type:
+		PowerUpToken.Type.ANVIL:
+			mass = RollConfig.BALL_MASS * RollConfig.POWERUP_ANVIL_MASS_MULTIPLIER
+			mat.albedo_color = Color(0.18, 0.20, 0.22)
+			mat.metallic = 0.95
+			mat.roughness = 0.18
+			if _powerup_tag:
+				_powerup_tag.text = "🪨 AMBOSS"
+				_powerup_tag.modulate = Color(0.8, 0.85, 0.9)
+		PowerUpToken.Type.SPIKE_WHEEL:
+			mat.albedo_color = Color(1.0, 0.22, 0.12)
+			mat.emission_enabled = true
+			mat.emission = Color(1.0, 0.25, 0.1)
+			mat.emission_energy_multiplier = 3.0
+			mat.roughness = 0.2
+			if _powerup_tag:
+				_powerup_tag.text = "⚡ STACHEL"
+				_powerup_tag.modulate = Color(1.0, 0.3, 0.2)
+		PowerUpToken.Type.NITRO_JET:
+			nitro_charges = RollConfig.POWERUP_NITRO_CHARGES
+			boost_cooldown_timer = 0.0
+			mat.albedo_color = Color(0.15, 0.75, 1.0)
+			mat.emission_enabled = true
+			mat.emission = Color(0.2, 0.85, 1.0)
+			mat.emission_energy_multiplier = 3.0
+			if _powerup_tag:
+				_powerup_tag.text = "🚀 NITRO (x3)"
+				_powerup_tag.modulate = Color(0.3, 0.85, 1.0)
+		PowerUpToken.Type.GHOST_PHASE:
+			collision_layer = 4
+			collision_mask = 1 # Still collides with arena floor!
+			mat.albedo_color = Color(0.65, 0.95, 1.0, 0.45)
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			mat.emission_enabled = true
+			mat.emission = Color(0.5, 0.9, 1.0)
+			mat.emission_energy_multiplier = 2.0
+			if _powerup_tag:
+				_powerup_tag.text = "👻 GEIST"
+				_powerup_tag.modulate = Color(0.6, 0.95, 1.0)
+		PowerUpToken.Type.ICE_TRAIL:
+			mat.albedo_color = Color(0.75, 0.92, 1.0)
+			mat.roughness = 0.05
+			mat.metallic = 0.4
+			mat.emission_enabled = true
+			mat.emission = Color(0.6, 0.85, 1.0)
+			mat.emission_energy_multiplier = 2.0
+			if _powerup_tag:
+				_powerup_tag.text = "❄️ EISSPUR"
+				_powerup_tag.modulate = Color(0.7, 0.9, 1.0)
+		PowerUpToken.Type.GRAVITY_MAGNET:
+			mat.albedo_color = Color(0.85, 0.2, 0.95)
+			mat.emission_enabled = true
+			mat.emission = Color(0.9, 0.2, 1.0)
+			mat.emission_energy_multiplier = 3.0
+			if _powerup_tag:
+				_powerup_tag.text = "🧲 MAGNET"
+				_powerup_tag.modulate = Color(0.95, 0.35, 1.0)
+	
+	_mesh_instance.material_override = mat
+	if _powerup_tag:
+		_powerup_tag.visible = true
+
+func clear_powerup() -> void:
+	mass = RollConfig.BALL_MASS
+	collision_layer = 1
+	collision_mask = 1
+	active_powerup = -1
+	powerup_timer = 0.0
+	nitro_charges = 0
+	
+	if _mesh_instance:
+		var mat = StandardMaterial3D.new()
+		mat.albedo_color = ball_color
+		mat.roughness = 0.25
+		mat.metallic = 0.3
+		_mesh_instance.material_override = mat
+	
+	if _powerup_tag:
+		_powerup_tag.visible = false
 
 func _clamp_speed() -> void:
 	var horizontal_vel = Vector3(linear_velocity.x, 0.0, linear_velocity.z)
@@ -303,11 +443,13 @@ func _check_out_of_bounds() -> void:
 	var cur_y = global_position.y if is_inside_tree() else position.y
 	if cur_y < RollConfig.OUT_OF_BOUNDS_Y:
 		is_active = false
+		clear_powerup()
 		fell_off.emit(player_id, last_hit_by_id)
 		respawn_timer = RollConfig.RESPAWN_DELAY_SECONDS
 
 func respawn(pos: Vector3 = initial_spawn_point) -> void:
 	_teleport_target = pos + Vector3(0, 2.0, 0)
+	clear_powerup()
 	if is_inside_tree():
 		_pending_teleport = true
 		global_position = _teleport_target
@@ -322,9 +464,15 @@ func respawn(pos: Vector3 = initial_spawn_point) -> void:
 
 func _on_body_entered(body: Node) -> void:
 	if body is PlayerBall and body != self:
-		# Gegenseitiger Rammkontakt: Speichere Angreifer für 1.5s
 		last_hit_by_id = body.player_id
 		last_hit_timer = 1.5
 		var rel_force = (linear_velocity - body.linear_velocity).length()
+		
+		# Stachelkugel-Stoßkraftverstärkung
+		if active_powerup == int(PowerUpToken.Type.SPIKE_WHEEL):
+			var push_dir = (body.global_position - global_position).normalized()
+			body.apply_central_impulse(push_dir * RollConfig.BOOST_IMPULSE * RollConfig.POWERUP_SPIKE_IMPULSE_MULTIPLIER)
+			rel_force *= RollConfig.POWERUP_SPIKE_IMPULSE_MULTIPLIER
+			
 		impact_occurred.emit(rel_force, global_position if is_inside_tree() else position)
 

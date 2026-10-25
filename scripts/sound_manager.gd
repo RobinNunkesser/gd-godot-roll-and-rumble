@@ -9,6 +9,9 @@ var stream_smash: AudioStreamWAV
 var stream_snap: AudioStreamWAV
 var stream_boost: AudioStreamWAV
 var stream_fall: AudioStreamWAV
+var stream_powerup: AudioStreamWAV
+
+static var instance: RollSoundManager
 
 var _players: Array[AudioStreamPlayer] = []
 var _pool_size: int = 8
@@ -16,9 +19,11 @@ var _current_player_idx: int = 0
 
 func _init() -> void:
 	name = "SoundManager"
+	instance = self
 	_synthesize_all_sounds()
 
 func _ready() -> void:
+	instance = self
 	_setup_player_pool()
 
 func _setup_player_pool() -> void:
@@ -87,12 +92,24 @@ func play_fall() -> void:
 		p.pitch_scale = randf_range(0.95, 1.05)
 		p.play()
 
+## 5. Power-Up Pickup (Aufsteigendes 16-Bit Arpeggio)
+func play_powerup() -> void:
+	if not is_inside_tree():
+		return
+	var p = _get_available_player()
+	if p:
+		p.stream = stream_powerup
+		p.volume_db = 0.0
+		p.pitch_scale = randf_range(0.98, 1.02)
+		p.play()
+
 func _synthesize_all_sounds() -> void:
 	stream_bounce = _generate_bounce_wav()
 	stream_smash = _generate_smash_wav()
 	stream_snap = _generate_snap_wav()
 	stream_boost = _generate_boost_wav()
 	stream_fall = _generate_fall_wav()
+	stream_powerup = _generate_powerup_wav()
 
 func _generate_bounce_wav() -> AudioStreamWAV:
 	var mix_rate = 22050
@@ -199,6 +216,33 @@ func _generate_fall_wav() -> AudioStreamWAV:
 		var freq = lerpf(600.0, 80.0, progress * progress) # Fallender Pfeifton
 		var env = (1.0 - progress) * 0.8
 		var sample = sin(t * freq * TAU) * env * 18000.0
+		data.encode_s16(i * 2, int(sample))
+		
+	var wav = AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = mix_rate
+	wav.stereo = false
+	wav.data = data
+	return wav
+
+func _generate_powerup_wav() -> AudioStreamWAV:
+	var mix_rate = 22050
+	var duration = 0.24
+	var total_samples = int(mix_rate * duration)
+	var data = PackedByteArray()
+	data.resize(total_samples * 2)
+	
+	for i in range(total_samples):
+		var t = float(i) / float(mix_rate)
+		var progress = t / duration
+		var note_idx = int(progress * 3.0)
+		var freq = 523.25
+		if note_idx == 1:
+			freq = 659.25
+		elif note_idx >= 2:
+			freq = 783.99
+		var env = sin((progress - float(note_idx) / 3.0) * 3.0 * PI)
+		var sample = sin(t * freq * TAU) * env * 20000.0
 		data.encode_s16(i * 2, int(sample))
 		
 	var wav = AudioStreamWAV.new()

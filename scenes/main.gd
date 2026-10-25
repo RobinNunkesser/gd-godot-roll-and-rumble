@@ -14,12 +14,16 @@ const BumperPinballArena = preload("res://scripts/arenas/bumper_pinball.gd")
 const IceSlickArena = preload("res://scripts/arenas/ice_slick.gd")
 const RollSoundManager = preload("res://scripts/sound_manager.gd")
 const RollImpactParticles = preload("res://scripts/impact_particles.gd")
+const PowerUpSpawner = preload("res://scripts/powerup_spawner.gd")
+const PowerUpToken = preload("res://scripts/powerup_token.gd")
 
 var state_manager: RollStateManager
 var current_arena: BaseArena
 var selected_arena_type: BaseArena.ArenaType = BaseArena.ArenaType.CLASSIC_RING
 var sound_manager: RollSoundManager
 var impact_particles: RollImpactParticles
+var powerup_spawner: PowerUpSpawner
+var powerups_enabled: bool = true
 var player1: PlayerBall
 var player2: PlayerBall
 var player3: PlayerBall
@@ -31,6 +35,9 @@ var ui_lobby_panel: Control
 var ui_arena_card: Panel
 var ui_arena_title_label: Label
 var ui_arena_desc_label: Label
+var ui_powerup_card: Panel
+var ui_powerup_label: Label
+var ui_powerup_toggle_btn: Button
 var ui_slot_labels: Array[Label] = []
 var ui_timer_label: Label
 var ui_score_labels: Dictionary = {}
@@ -102,7 +109,13 @@ func _build_scene() -> void:
 	impact_particles = RollImpactParticles.new()
 	add_child(impact_particles)
 	
-	# 3. 4 Spieler-Kugeln
+	# 3. Phase 3: Power-Up Spawner
+	powerup_spawner = PowerUpSpawner.new()
+	powerup_spawner.name = "PowerUpSpawner"
+	powerup_spawner.enabled = powerups_enabled
+	add_child(powerup_spawner)
+	
+	# 4. 4 Spieler-Kugeln
 	var p_configs = [
 		{"id": 1, "name": "Player1_Red", "color": Color(0.95, 0.25, 0.25), "pos": Vector3(-5.0, RollConfig.BALL_RADIUS + 0.1, 0.0), "ctrl": PlayerBall.ControlType.HUMAN_KB1},
 		{"id": 2, "name": "Player2_Blue", "color": Color(0.2, 0.55, 0.95), "pos": Vector3(5.0, RollConfig.BALL_RADIUS + 0.1, 0.0), "ctrl": PlayerBall.ControlType.AI_BOT},
@@ -215,10 +228,10 @@ func _build_ui() -> void:
 	ui_lobby_panel.add_child(title)
 	
 	var subtitle = Label.new()
-	subtitle.text = "Slots: [1]-[4]  |  Arena wechseln: [T] oder [A]  |  Start mit [SPACE / ENTER]"
+	subtitle.text = "Slots: [1]-[4]  |  Arena wechseln: [T]/[A]  |  [P] Power-Ups: AN/AUS  |  Start mit [SPACE / ENTER]"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.position = Vector2(240, 100)
-	subtitle.size = Vector2(800, 30)
+	subtitle.position = Vector2(140, 100)
+	subtitle.size = Vector2(1000, 30)
 	subtitle.add_theme_font_size_override("font_size", 20)
 	subtitle.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
 	ui_lobby_panel.add_child(subtitle)
@@ -228,8 +241,8 @@ func _build_ui() -> void:
 	var start_x = 80
 	for i in range(4):
 		var card = Panel.new()
-		card.position = Vector2(start_x + i * (col_width + 20), 160)
-		card.size = Vector2(col_width, 360)
+		card.position = Vector2(start_x + i * (col_width + 20), 150)
+		card.size = Vector2(col_width, 340)
 		ui_lobby_panel.add_child(card)
 		
 		var p_title = Label.new()
@@ -260,30 +273,50 @@ func _build_ui() -> void:
 		key_hint.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75))
 		card.add_child(key_hint)
 	
+	# Power-Up Toggle Bar in Lobby (Option A: Deaktivierbar im Hauptmenü)
+	ui_powerup_card = Panel.new()
+	ui_powerup_card.position = Vector2(80, 505)
+	ui_powerup_card.size = Vector2(1100, 50)
+	ui_lobby_panel.add_child(ui_powerup_card)
+	
+	ui_powerup_label = Label.new()
+	ui_powerup_label.position = Vector2(20, 10)
+	ui_powerup_label.size = Vector2(780, 30)
+	ui_powerup_label.add_theme_font_size_override("font_size", 18)
+	ui_powerup_card.add_child(ui_powerup_label)
+	
+	ui_powerup_toggle_btn = Button.new()
+	ui_powerup_toggle_btn.position = Vector2(820, 7)
+	ui_powerup_toggle_btn.size = Vector2(260, 36)
+	ui_powerup_toggle_btn.add_theme_font_size_override("font_size", 16)
+	ui_powerup_toggle_btn.pressed.connect(toggle_powerups)
+	ui_powerup_card.add_child(ui_powerup_toggle_btn)
+	
 	# Arena Selection Card in Lobby
 	ui_arena_card = Panel.new()
-	ui_arena_card.position = Vector2(80, 535)
-	ui_arena_card.size = Vector2(1100, 105)
+	ui_arena_card.position = Vector2(80, 565)
+	ui_arena_card.size = Vector2(1100, 95)
 	ui_lobby_panel.add_child(ui_arena_card)
 	
 	ui_arena_title_label = Label.new()
-	ui_arena_title_label.position = Vector2(20, 12)
-	ui_arena_title_label.size = Vector2(1060, 35)
+	ui_arena_title_label.position = Vector2(20, 10)
+	ui_arena_title_label.size = Vector2(1060, 32)
 	ui_arena_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ui_arena_title_label.add_theme_font_size_override("font_size", 24)
+	ui_arena_title_label.add_theme_font_size_override("font_size", 22)
 	ui_arena_title_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	ui_arena_card.add_child(ui_arena_title_label)
 	
 	ui_arena_desc_label = Label.new()
-	ui_arena_desc_label.position = Vector2(20, 52)
-	ui_arena_desc_label.size = Vector2(1060, 42)
+	ui_arena_desc_label.position = Vector2(20, 48)
+	ui_arena_desc_label.size = Vector2(1060, 38)
 	ui_arena_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ui_arena_desc_label.add_theme_font_size_override("font_size", 17)
+	ui_arena_desc_label.add_theme_font_size_override("font_size", 16)
 	ui_arena_desc_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
 	ui_arena_card.add_child(ui_arena_desc_label)
 	
 	_update_lobby_ui()
 	_update_arena_ui()
+	_update_powerup_ui()
 	canvas.add_child(ui_lobby_panel)
 	add_child(canvas)
 
@@ -347,6 +380,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				cycle_player_slot(3)
 			elif event.keycode == KEY_T or event.keycode == KEY_A or event.keycode == KEY_LEFT or event.keycode == KEY_RIGHT:
 				cycle_arena()
+			elif event.keycode == KEY_P:
+				toggle_powerups()
 			elif event.keycode == KEY_SPACE or event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
 				start_match_from_lobby()
 		else:
@@ -487,16 +522,27 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 	match new_state:
 		RollStateManager.MatchState.LOBBY:
 			ui_status_label.visible = false
+			if powerup_spawner:
+				powerup_spawner.clear_tokens()
+				powerup_spawner.enabled = false
 			for p in players:
 				p.freeze = true
+				p.clear_powerup()
 		RollStateManager.MatchState.WARMUP:
 			ui_status_label.visible = true
 			ui_status_label.text = "3"
+			if powerup_spawner:
+				powerup_spawner.clear_tokens()
+				powerup_spawner.enabled = false
 			for p in players:
 				if p.control_type != PlayerBall.ControlType.OFF:
 					p.freeze = true
+				p.clear_powerup()
 		RollStateManager.MatchState.PLAYING:
 			ui_status_label.visible = false
+			if powerup_spawner:
+				powerup_spawner.enabled = powerups_enabled
+				powerup_spawner.reset_timer()
 			# Unfreeze all active players!
 			for p in players:
 				if p.control_type != PlayerBall.ControlType.OFF:
@@ -506,6 +552,11 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 			ui_status_label.text = "🔥 SUDDEN DEATH! 🔥"
 		RollStateManager.MatchState.MATCH_OVER:
 			ui_status_label.visible = true
+			if powerup_spawner:
+				powerup_spawner.clear_tokens()
+				powerup_spawner.enabled = false
+			for p in players:
+				p.clear_powerup()
 			var w = state_manager.get_winner()
 			if w > 0:
 				ui_status_label.text = "🏆 PLAYER %d WINS! 🏆" % w
@@ -559,6 +610,24 @@ func _on_bumper_hit(_ball: PlayerBall, hit_pos: Vector3) -> void:
 		sound_manager.play_impact(8.5)
 	if impact_particles:
 		impact_particles.spawn_sparks(hit_pos, 7.0)
+
+func toggle_powerups() -> void:
+	powerups_enabled = !powerups_enabled
+	if powerup_spawner:
+		powerup_spawner.enabled = powerups_enabled
+	_update_powerup_ui()
+
+func _update_powerup_ui() -> void:
+	if not ui_powerup_label or not ui_powerup_toggle_btn:
+		return
+	if powerups_enabled:
+		ui_powerup_label.text = "⚡ POWER-UPS: AKTIV (6 Archetypen: Amboss, Stachel, Nitro, Geist, Eis, Magnet)"
+		ui_powerup_label.add_theme_color_override("font_color", Color(0.4, 0.95, 0.5))
+		ui_powerup_toggle_btn.text = "DEAKTIVIEREN [P]"
+	else:
+		ui_powerup_label.text = "🚫 POWER-UPS: DEAKTIVIERT (Klassisches pures Sumo-Rumble)"
+		ui_powerup_label.add_theme_color_override("font_color", Color(0.9, 0.45, 0.45))
+		ui_powerup_toggle_btn.text = "AKTIVIEREN [P]"
 
 
 

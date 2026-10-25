@@ -15,6 +15,8 @@ const IceSlickArena = preload("res://scripts/arenas/ice_slick.gd")
 const PinballBumper = preload("res://scripts/pinball_bumper.gd")
 const RollSoundManager = preload("res://scripts/sound_manager.gd")
 const RollImpactParticles = preload("res://scripts/impact_particles.gd")
+const PowerUpToken = preload("res://scripts/powerup_token.gd")
+const PowerUpSpawner = preload("res://scripts/powerup_spawner.gd")
 
 func _init() -> void:
 	print("\n--- Running Headless Godot 4 Unit & Gameplay Tests for Roll & Rumble 3D ---")
@@ -28,6 +30,7 @@ func _init() -> void:
 	success = success and _test_arenas()
 	success = success and _test_main_scene()
 	success = success and _test_juice_systems()
+	success = success and _test_powerups()
 	
 	if success:
 		print("=== ALL TESTS FOR ROLL & RUMBLE 3D PASSED SUCCESSFULLY! ===\n")
@@ -263,13 +266,22 @@ func _test_main_scene() -> bool:
 	assert(main_game.sound_manager != null, "Sound manager should be instantiated")
 	assert(main_game.impact_particles != null, "Impact particles should be instantiated")
 	
+	# Power-Up Toggle im Hauptmenü / Lobby testen (Option A)
+	assert(main_game.powerups_enabled, "Power-ups should be enabled by default")
+	main_game.toggle_powerups()
+	assert(not main_game.powerups_enabled, "Power-ups should be toggleable OFF in lobby")
+	assert(not main_game.powerup_spawner.enabled, "PowerUpSpawner should sync disabled state")
+	main_game.toggle_powerups()
+	assert(main_game.powerups_enabled, "Power-ups should be toggleable ON in lobby")
+	assert(main_game.powerup_spawner.enabled, "PowerUpSpawner should sync enabled state")
+	
 	main_game._process(0.016)
 	main_game.queue_free()
 	print("  -> MainRollGame & 4-Player Lobby & Arena Switching OK.")
 	return true
 
 func _test_juice_systems() -> bool:
-	print("[8/8] Testing RollSoundManager & RollImpactParticles...")
+	print("[8/9] Testing RollSoundManager & RollImpactParticles...")
 	var sm = RollSoundManager.new()
 	root.add_child(sm)
 	sm._ready()
@@ -277,10 +289,12 @@ func _test_juice_systems() -> bool:
 	assert(sm.stream_smash != null, "Smash stream should be synthesized")
 	assert(sm.stream_snap != null, "Snap stream should be synthesized")
 	assert(sm.stream_boost != null, "Boost stream should be synthesized")
+	assert(sm.stream_powerup != null, "Powerup stream should be synthesized")
 	sm.play_impact(8.5)
 	sm.play_trap_snap()
 	sm.play_boost()
 	sm.play_fall()
+	sm.play_powerup()
 	sm.queue_free()
 	
 	var ip = RollImpactParticles.new()
@@ -294,3 +308,71 @@ func _test_juice_systems() -> bool:
 	print("  -> SoundManager & ImpactParticles OK.")
 	return true
 
+func _test_powerups() -> bool:
+	print("[9/9] Testing Phase 3 Power-Up System (6 Archetypes, Spawner & Ball Integration)...")
+	# 1. PowerUpToken Visuals & Types
+	for t in PowerUpToken.Type.values():
+		var token = PowerUpToken.new(t)
+		root.add_child(token)
+		token._ready()
+		assert(token.powerup_type == t, "Token type mismatch")
+		assert(token.has_node("CollisionShape3D"), "Token must have CollisionShape3D")
+		assert(token.has_node("TokenMeshPivot"), "Token must have mesh pivot")
+		token._process(0.016)
+		token.queue_free()
+	
+	# 2. PowerUpSpawner
+	var spawner = PowerUpSpawner.new()
+	root.add_child(spawner)
+	spawner._ready()
+	assert(spawner.enabled, "Spawner should be enabled by default")
+	var spawned_t = spawner.spawn_specific_token(PowerUpToken.Type.NITRO_JET, Vector3(0, 0.85, 0))
+	assert(spawned_t != null, "Spawner should spawn specific token")
+	assert(spawner.active_tokens.size() == 1, "Spawner should track active token")
+	spawner.clear_tokens()
+	assert(spawner.active_tokens.size() == 0, "Tokens should be cleared")
+	spawner.queue_free()
+	
+	# 3. PlayerBall Transformations & Physics Multipliers
+	var ball = PlayerBall.new()
+	ball.player_id = 1
+	root.add_child(ball)
+	ball._ready()
+	
+	# Anvil: 3x Mass
+	ball.apply_powerup(PowerUpToken.Type.ANVIL, 5.0)
+	assert(ball.active_powerup == PowerUpToken.Type.ANVIL, "Ball should have ANVIL active")
+	assert(is_equal_approx(ball.mass, RollConfig.BALL_MASS * RollConfig.POWERUP_ANVIL_MASS_MULTIPLIER), "Anvil mass mismatch")
+	
+	# Spike Wheel
+	ball.apply_powerup(PowerUpToken.Type.SPIKE_WHEEL, 5.0)
+	assert(ball.active_powerup == PowerUpToken.Type.SPIKE_WHEEL, "Ball should have SPIKE_WHEEL active")
+	assert(is_equal_approx(ball.mass, RollConfig.BALL_MASS), "Mass should revert to normal")
+	
+	# Nitro Jet
+	ball.apply_powerup(PowerUpToken.Type.NITRO_JET, 5.0)
+	assert(ball.nitro_charges == RollConfig.POWERUP_NITRO_CHARGES, "Nitro charges should be granted")
+	ball.trigger_boost(Vector2(1.0, 0.0))
+	assert(ball.nitro_charges == RollConfig.POWERUP_NITRO_CHARGES - 1, "Nitro charge should be consumed")
+	assert(ball.boost_cooldown_timer == 0.0, "Nitro boost should bypass cooldown")
+	
+	# Ghost Phase
+	ball.apply_powerup(PowerUpToken.Type.GHOST_PHASE, 5.0)
+	assert(ball.collision_layer == 4, "Ghost phase should set layer to 4")
+	assert(ball.collision_mask == 1, "Ghost phase should keep floor mask 1")
+	
+	# Ice Trail & Gravity Magnet
+	ball.apply_powerup(PowerUpToken.Type.ICE_TRAIL, 5.0)
+	assert(ball.active_powerup == PowerUpToken.Type.ICE_TRAIL, "Ice trail active mismatch")
+	ball.apply_powerup(PowerUpToken.Type.GRAVITY_MAGNET, 5.0)
+	assert(ball.active_powerup == PowerUpToken.Type.GRAVITY_MAGNET, "Magnet active mismatch")
+	
+	# Clear Powerup
+	ball.clear_powerup()
+	assert(ball.active_powerup == -1, "Active powerup should be -1 after clear")
+	assert(is_equal_approx(ball.mass, RollConfig.BALL_MASS), "Mass should be default after clear")
+	assert(ball.collision_layer == 1, "Collision layer should be 1 after clear")
+	
+	ball.queue_free()
+	print("  -> PowerUpToken, Spawner, Ball Archetypes & Sound Integration OK.")
+	return true
