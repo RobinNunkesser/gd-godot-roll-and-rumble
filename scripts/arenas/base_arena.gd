@@ -4,6 +4,7 @@ extends Node3D
 const RollConfig = preload("res://scripts/config.gd")
 
 enum ArenaType {
+	PURE_RING,
 	CLASSIC_RING,
 	DIZZY_SPINNER,
 	WOBBLY_SEESAW,

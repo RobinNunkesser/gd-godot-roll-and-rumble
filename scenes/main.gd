@@ -7,6 +7,7 @@ const PlayerBall = preload("res://scripts/player_ball.gd")
 const MousetrapHazard = preload("res://scripts/mousetrap.gd")
 const SharedArenaCamera = preload("res://scripts/shared_camera.gd")
 const BaseArena = preload("res://scripts/arenas/base_arena.gd")
+const PureRingArena = preload("res://scripts/arenas/pure_ring.gd")
 const ClassicRingArena = preload("res://scripts/arenas/classic_ring.gd")
 const DizzySpinnerArena = preload("res://scripts/arenas/dizzy_spinner.gd")
 const WobblySeesawArena = preload("res://scripts/arenas/wobbly_seesaw.gd")
@@ -22,7 +23,7 @@ const Trophy3D = preload("res://scripts/trophy_3d.gd")
 var state_manager: RollStateManager
 var leaderboard: LeaderboardManager
 var current_arena: BaseArena
-var selected_arena_type: BaseArena.ArenaType = BaseArena.ArenaType.CLASSIC_RING
+var selected_arena_type: BaseArena.ArenaType = BaseArena.ArenaType.PURE_RING
 var sound_manager: RollSoundManager
 var impact_particles: RollImpactParticles
 var powerup_spawner: PowerUpSpawner
@@ -557,6 +558,8 @@ func _load_arena(type: BaseArena.ArenaType) -> void:
 		current_arena = null
 	
 	match type:
+		BaseArena.ArenaType.PURE_RING:
+			current_arena = PureRingArena.new()
 		BaseArena.ArenaType.CLASSIC_RING:
 			current_arena = ClassicRingArena.new()
 		BaseArena.ArenaType.DIZZY_SPINNER:
@@ -568,7 +571,7 @@ func _load_arena(type: BaseArena.ArenaType) -> void:
 		BaseArena.ArenaType.ICE_SLICK:
 			current_arena = IceSlickArena.new()
 		_:
-			current_arena = ClassicRingArena.new()
+			current_arena = PureRingArena.new()
 	
 	current_arena.name = "ActiveArena"
 	add_child(current_arena)

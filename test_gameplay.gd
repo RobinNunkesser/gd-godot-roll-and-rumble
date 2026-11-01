@@ -7,6 +7,7 @@ const MousetrapHazard = preload("res://scripts/mousetrap.gd")
 const SharedArenaCamera = preload("res://scripts/shared_camera.gd")
 const MainRollGame = preload("res://scenes/main.gd")
 const BaseArena = preload("res://scripts/arenas/base_arena.gd")
+const PureRingArena = preload("res://scripts/arenas/pure_ring.gd")
 const ClassicRingArena = preload("res://scripts/arenas/classic_ring.gd")
 const DizzySpinnerArena = preload("res://scripts/arenas/dizzy_spinner.gd")
 const WobblySeesawArena = preload("res://scripts/arenas/wobbly_seesaw.gd")
@@ -163,7 +164,14 @@ func _test_shared_camera() -> bool:
 	return true
 
 func _test_arenas() -> bool:
-	print("[6/11] Testing Phase 2 dynamic arenas (Classic, Spinner, Seesaw, Pinball, Ice)...")
+	print("[6/11] Testing Phase 2 dynamic arenas (Sumo, Classic, Spinner, Seesaw, Pinball, Ice)...")
+	# 0. PureRingArena
+	var pure = PureRingArena.new()
+	root.add_child(pure)
+	pure._ready()
+	assert(pure.arena_name == "SUMO RING", "Pure ring name mismatch")
+	pure.queue_free()
+	
 	# 1. ClassicRingArena
 	var classic = ClassicRingArena.new()
 	root.add_child(classic)
@@ -219,7 +227,7 @@ func _test_arenas() -> bool:
 	assert(ice.ice_pillars.size() == 4, "Ice arena should have 4 pillars")
 	ice.queue_free()
 	
-	print("  -> Dynamic Arenas (5 Total: Classic, Spinner, Seesaw, Pinball, Ice) OK.")
+	print("  -> Dynamic Arenas (6 Total: Sumo, Classic, Spinner, Seesaw, Pinball, Ice) OK.")
 	return true
 
 func _test_main_scene() -> bool:
@@ -234,8 +242,10 @@ func _test_main_scene() -> bool:
 	assert(main_game.player2.is_bot, "Player 2 should default to AI bot for single-player")
 	assert(main_game.leaderboard != null, "Leaderboard manager should be instantiated")
 	
-	# Arena-Auswahl im Lobby-Modus (5 Arenen zyklisch durchschalten)
-	assert(main_game.current_arena is ClassicRingArena, "Default arena should be ClassicRingArena")
+	# Arena-Auswahl im Lobby-Modus (6 Arenen zyklisch durchschalten)
+	assert(main_game.current_arena is PureRingArena, "Default arena should be PureRingArena")
+	main_game.cycle_arena()
+	assert(main_game.current_arena is ClassicRingArena, "Arena should cycle to ClassicRingArena")
 	main_game.cycle_arena()
 	assert(main_game.current_arena is DizzySpinnerArena, "Arena should cycle to DizzySpinnerArena")
 	main_game.cycle_arena()
@@ -245,7 +255,7 @@ func _test_main_scene() -> bool:
 	main_game.cycle_arena()
 	assert(main_game.current_arena is IceSlickArena, "Arena should cycle to IceSlickArena")
 	main_game.cycle_arena()
-	assert(main_game.current_arena is ClassicRingArena, "Arena should cycle back to ClassicRingArena")
+	assert(main_game.current_arena is PureRingArena, "Arena should cycle back to PureRingArena")
 	
 	# Bot Toggle testen
 	main_game.toggle_p2_bot()
