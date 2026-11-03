@@ -1,0 +1,130 @@
+name: Export & Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+jobs:
+  export:
+    name: Build & Package Release Binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Godot & Export Templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: true
+
+      - name: Create Build Directories
+        run: |
+          mkdir -p builds/windows
+          mkdir -p builds/linux
+          mkdir -p builds/macos
+          mkdir -p builds/web
+
+      - name: Import Resources
+        run: |
+          godot --headless --editor --quit
+
+      - name: Export Windows Desktop
+        run: |
+          godot --headless --export-release "Windows Desktop" builds/windows/RollAndRumble.exe || test -f builds/windows/RollAndRumble.exe
+
+      - name: Export Linux
+        run: |
+          godot --headless --export-release "Linux" builds/linux/RollAndRumble.x86_64 || test -f builds/linux/RollAndRumble.x86_64
+
+      - name: Export macOS
+        run: |
+          godot --headless --export-release "macOS" builds/macos/RollAndRumble.zip || test -f builds/macos/RollAndRumble.zip
+
+      - name: Export Web (HTML5)
+        run: |
+          godot --headless --export-release "Web" builds/web/index.html || test -f builds/web/index.html
+
+      - name: Package ZIP Archives
+        run: |
+          cd builds/windows && zip -r ../../RollAndRumble-Windows.zip RollAndRumble.exe && cd ../..
+          cd builds/linux && zip -r ../../RollAndRumble-Linux.zip RollAndRumble.x86_64 && cd ../..
+          cp builds/macos/RollAndRumble.zip RollAndRumble-macOS.zip
+          cd builds/web && zip -r ../../RollAndRumble-Web.zip . && cd ../..
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RollAndRumble-Windows
+          path: RollAndRumble-Windows.zip
+
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RollAndRumble-Linux
+          path: RollAndRumble-Linux.zip
+
+      - name: Upload macOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RollAndRumble-macOS
+          path: RollAndRumble-macOS.zip
+
+      - name: Upload Web Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RollAndRumble-Web
+          path: RollAndRumble-Web.zip
+
+      - name: Create GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            RollAndRumble-Windows.zip
+            RollAndRumble-Linux.zip
+            RollAndRumble-macOS.zip
+            RollAndRumble-Web.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: true
+
+      - name: Setup Pages
+        if: github.ref == 'refs/heads/main'
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload Pages Artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: builds/web
+
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    if: github.ref == 'refs/heads/main'
+    needs: export
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
