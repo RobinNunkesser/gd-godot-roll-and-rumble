@@ -23,6 +23,7 @@ const CouchNav = preload("res://addons/couch_ui/couch_nav.gd")
 const CouchTheme = preload("res://addons/couch_ui/couch_theme.gd")
 const CouchPauseOverlay = preload("res://addons/couch_ui/couch_pause_overlay.gd")
 const CouchTouchOverlay = preload("res://addons/couch_ui/couch_touch_overlay.gd")
+const CouchPlayerCard = preload("res://addons/couch_ui/couch_player_card.gd")
 
 var state_manager: RollStateManager
 var leaderboard: LeaderboardManager
@@ -282,38 +283,15 @@ func _build_ui() -> void:
 	var col_width = 260
 	var start_x = 80
 	for i in range(4):
-		var card = Panel.new()
+		var card := CouchPlayerCard.new(i, p_colors[i], false)
 		card.position = Vector2(start_x + i * (col_width + 20), 145)
 		card.size = Vector2(col_width, 340)
+		card.control_cycled.connect(cycle_player_slot)
 		ui_lobby_panel.add_child(card)
-		
-		var p_title = Label.new()
-		p_title.text = p_names[i]
-		p_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		p_title.position = Vector2(10, 15)
-		p_title.size = Vector2(col_width - 20, 35)
-		p_title.add_theme_font_size_override("font_size", 24)
-		p_title.add_theme_color_override("font_color", p_colors[i])
-		card.add_child(p_title)
-		
-		var slot_lbl = Label.new()
-		slot_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		slot_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		slot_lbl.position = Vector2(10, 80)
-		slot_lbl.size = Vector2(col_width - 20, 140)
-		slot_lbl.add_theme_font_size_override("font_size", 22)
-		slot_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-		card.add_child(slot_lbl)
-		ui_slot_labels.append(slot_lbl)
-		
-		var slot_btn := Button.new()
-		slot_btn.text = "WECHSELN [%d]" % (i + 1)
-		slot_btn.position = Vector2(20, 270)
-		slot_btn.size = Vector2(col_width - 40, 48)
-		slot_btn.focus_mode = Control.FOCUS_ALL
-		slot_btn.pressed.connect(cycle_player_slot.bind(i))
-		card.add_child(slot_btn)
-		ui_slot_btns.append(slot_btn)
+		card.set_title(p_names[i], p_colors[i])
+		ui_slot_labels.append(card.status_label)
+		card.ctrl_btn.text = "STEUERUNG"
+		ui_slot_btns.append(card.ctrl_btn)
 	
 	# Kompakte Optionsleiste: Match-Modus, Power-Ups, Bestenliste (y=500, H=50)
 	ui_options_card = Panel.new()
@@ -331,7 +309,7 @@ func _build_ui() -> void:
 	ui_mode_toggle_btn = Button.new()
 	ui_mode_toggle_btn.position = Vector2(265, 7)
 	ui_mode_toggle_btn.size = Vector2(150, 36)
-	ui_mode_toggle_btn.text = "MODUS [M]"
+	ui_mode_toggle_btn.text = "MODUS"
 	ui_mode_toggle_btn.add_theme_font_size_override("font_size", 14)
 	ui_mode_toggle_btn.pressed.connect(cycle_match_mode)
 	ui_options_card.add_child(ui_mode_toggle_btn)
@@ -354,7 +332,7 @@ func _build_ui() -> void:
 	ui_leaderboard_btn = Button.new()
 	ui_leaderboard_btn.position = Vector2(870, 7)
 	ui_leaderboard_btn.size = Vector2(215, 36)
-	ui_leaderboard_btn.text = "🏆 BESTENLISTE [L]"
+	ui_leaderboard_btn.text = "🏆 BESTENLISTE"
 	ui_leaderboard_btn.add_theme_font_size_override("font_size", 14)
 	ui_leaderboard_btn.pressed.connect(toggle_leaderboard)
 	ui_options_card.add_child(ui_leaderboard_btn)
@@ -470,7 +448,7 @@ func _build_ui() -> void:
 	ui_leaderboard_close_btn = Button.new()
 	ui_leaderboard_close_btn.position = Vector2(620, 520)
 	ui_leaderboard_close_btn.size = Vector2(340, 48)
-	ui_leaderboard_close_btn.text = "SCHLIESSEN [ESC / L]"
+	ui_leaderboard_close_btn.text = "SCHLIESSEN"
 	ui_leaderboard_close_btn.add_theme_font_size_override("font_size", 18)
 	ui_leaderboard_close_btn.pressed.connect(func(): toggle_leaderboard(false))
 	lb_panel.add_child(ui_leaderboard_close_btn)
