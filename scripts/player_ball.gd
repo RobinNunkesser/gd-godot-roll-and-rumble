@@ -254,12 +254,16 @@ func _handle_bot_ai(_delta: float) -> void:
 		if _eyes_pivot:
 			_eyes_pivot.rotation.y = atan2(-move_dir.x, -move_dir.z)
 
+var external_input_vec: Vector2 = Vector2.ZERO
+var external_boost_pressed: bool = false
+
 func _handle_input(_delta: float) -> void:
 	if control_type == ControlType.OFF or control_type == ControlType.AI_BOT:
 		return
 	
-	var input_vec = Vector2.ZERO
-	var boost_pressed = false
+	var input_vec = external_input_vec
+	var boost_pressed = external_boost_pressed
+	external_boost_pressed = false
 	
 	match control_type:
 		ControlType.HUMAN_KB1:

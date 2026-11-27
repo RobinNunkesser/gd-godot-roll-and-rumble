@@ -22,6 +22,7 @@ const Trophy3D = preload("res://scripts/trophy_3d.gd")
 const CouchNav = preload("res://addons/couch_ui/couch_nav.gd")
 const CouchTheme = preload("res://addons/couch_ui/couch_theme.gd")
 const CouchPauseOverlay = preload("res://addons/couch_ui/couch_pause_overlay.gd")
+const CouchTouchOverlay = preload("res://addons/couch_ui/couch_touch_overlay.gd")
 
 var state_manager: RollStateManager
 var leaderboard: LeaderboardManager
@@ -42,6 +43,7 @@ var camera: SharedArenaCamera
 
 var ui_lobby_panel: Control
 var ui_pause_overlay: CouchPauseOverlay
+var ui_touch_overlay: CouchTouchOverlay
 var ui_arena_card: Panel
 var ui_arena_title_label: Label
 var ui_arena_desc_label: Label
@@ -393,6 +395,18 @@ func _build_ui() -> void:
 			sound_manager.set_sfx_muted(m)
 	)
 	canvas.add_child(ui_pause_overlay)
+
+	ui_touch_overlay = CouchTouchOverlay.new()
+	ui_touch_overlay.primary_label = "BOOST"
+	ui_touch_overlay.pause_pressed.connect(func() -> void:
+		if ui_pause_overlay:
+			ui_pause_overlay.open()
+	)
+	ui_touch_overlay.primary_pressed.connect(func() -> void:
+		if player1:
+			player1.external_boost_pressed = true
+	)
+	add_child(ui_touch_overlay)
 	
 	# --- Modale Bestenliste (Overlay) ---
 	ui_leaderboard_modal = Control.new()
@@ -681,6 +695,8 @@ func _get_active_player_ids() -> Array:
 	return ids
 
 func _process(delta: float) -> void:
+	if ui_touch_overlay and player1:
+		player1.external_input_vec = ui_touch_overlay.input_vector if ui_touch_overlay.is_gameplay_active else Vector2.ZERO
 	if state_manager:
 		state_manager.update_logic(delta)
 	
@@ -717,6 +733,8 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 		RollStateManager.MatchState.LOBBY:
 			if sound_manager:
 				sound_manager.play_music("lobby")
+			if ui_touch_overlay:
+				ui_touch_overlay.set_gameplay_active(false)
 			ui_status_label.visible = false
 			_clear_trophy()
 			if powerup_spawner:
@@ -749,6 +767,8 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 					p.freeze = true
 				p.clear_powerup()
 		RollStateManager.MatchState.PLAYING:
+			if ui_touch_overlay:
+				ui_touch_overlay.set_gameplay_active(true)
 			ui_status_label.visible = false
 			if powerup_spawner:
 				powerup_spawner.enabled = powerups_enabled
@@ -762,6 +782,8 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 			ui_status_label.visible = true
 			ui_status_label.text = "🔥 SUDDEN DEATH! 🔥"
 		RollStateManager.MatchState.ROUND_OVER:
+			if ui_touch_overlay:
+				ui_touch_overlay.set_gameplay_active(false)
 			ui_status_label.visible = true
 			if sound_manager:
 				sound_manager.play_round_win()
@@ -774,6 +796,8 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 				p.freeze = true
 				p.clear_powerup()
 		RollStateManager.MatchState.MATCH_OVER:
+			if ui_touch_overlay:
+				ui_touch_overlay.set_gameplay_active(false)
 			if sound_manager:
 				sound_manager.play_music("none")
 			ui_status_label.visible = true
