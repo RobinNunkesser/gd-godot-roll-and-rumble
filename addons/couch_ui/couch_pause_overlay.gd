@@ -134,3 +134,6 @@ func _input(event: InputEvent) -> void:
 	if CouchNav.is_back(event) or CouchNav.is_start(event):
 		get_viewport().set_input_as_handled()
 		close()
+	elif event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_A and not event.is_action("ui_accept"):
+		if CouchNav.activate_focused(get_viewport()):
+			get_viewport().set_input_as_handled()

@@ -570,6 +570,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if CouchNav.is_start(event) and not (event is InputEventKey and event.keycode == KEY_ESCAPE):
 			start_match_from_lobby()
 			return
+		if event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_A:
+			if CouchNav.activate_focused(get_viewport()):
+				return
 	else:
 		if CouchNav.is_start(event):
 			if ui_pause_overlay:

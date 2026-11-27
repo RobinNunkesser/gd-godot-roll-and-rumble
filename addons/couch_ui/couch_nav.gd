@@ -71,3 +71,12 @@ static func wire_row_focus(controls: Array, wrap: bool = true) -> void:
 			valid[i].focus_neighbor_right = valid[i].get_path_to(valid[i + 1])
 		elif wrap and n > 1:
 			valid[i].focus_neighbor_right = valid[i].get_path_to(valid[0])
+
+static func activate_focused(vp: Viewport) -> bool:
+	if vp == null:
+		return false
+	var focused := vp.gui_get_focus_owner()
+	if focused is BaseButton and not focused.disabled:
+		focused.pressed.emit()
+		return true
+	return false
