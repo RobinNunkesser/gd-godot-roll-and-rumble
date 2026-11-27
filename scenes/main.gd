@@ -561,14 +561,22 @@ func _setup_lobby_focus() -> void:
 		return
 	var shell := ui_lobby_panel as CouchMenuShell
 	CouchNav.wire_row_focus(ui_slot_btns, true)
+	var name_btns: Array = []
+	for c in ui_slot_cards:
+		name_btns.append(c.name_btn)
+	CouchNav.wire_row_focus(name_btns, true)
 	var back_p := shell.get_back_button(CouchMenuShell.Page.PLAYERS)
-	for sb in ui_slot_btns:
+	for i in range(ui_slot_cards.size()):
+		var c := ui_slot_cards[i]
+		c.name_btn.focus_neighbor_bottom = c.name_btn.get_path_to(c.ctrl_btn)
+		c.ctrl_btn.focus_neighbor_top = c.ctrl_btn.get_path_to(c.name_btn)
 		if is_instance_valid(back_p):
-			sb.focus_neighbor_bottom = sb.get_path_to(back_p)
-			sb.focus_neighbor_top = sb.get_path_to(back_p)
-	if is_instance_valid(back_p) and not ui_slot_btns.is_empty():
-		back_p.focus_neighbor_top = back_p.get_path_to(ui_slot_btns[0])
-		back_p.focus_neighbor_bottom = back_p.get_path_to(ui_slot_btns[0])
+			c.name_btn.focus_neighbor_top = c.name_btn.get_path_to(back_p)
+			c.ctrl_btn.focus_neighbor_bottom = c.ctrl_btn.get_path_to(back_p)
+	if is_instance_valid(back_p) and not ui_slot_cards.is_empty():
+		back_p.focus_neighbor_top = back_p.get_path_to(ui_slot_cards[0].ctrl_btn)
+		back_p.focus_neighbor_bottom = back_p.get_path_to(ui_slot_cards[0].name_btn)
+		shell._page_first_focus[CouchMenuShell.Page.PLAYERS] = ui_slot_cards[0].name_btn
 	_update_menu_summary()
 
 func _update_menu_summary() -> void:
