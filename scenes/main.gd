@@ -26,6 +26,7 @@ const CouchTouchOverlay = preload("res://addons/couch_ui/couch_touch_overlay.gd"
 const CouchPlayerCard = preload("res://addons/couch_ui/couch_player_card.gd")
 const CouchMenuShell = preload("res://addons/couch_ui/couch_menu_shell.gd")
 const CouchDefaults = preload("res://addons/couch_ui/couch_defaults.gd")
+const CouchMatchOverOverlay = preload("res://addons/couch_ui/couch_match_over_overlay.gd")
 
 var state_manager: RollStateManager
 var leaderboard: LeaderboardManager
@@ -46,6 +47,7 @@ var camera: SharedArenaCamera
 
 var ui_lobby_panel: Control
 var ui_pause_overlay: CouchPauseOverlay
+var ui_match_over_overlay: CouchMatchOverOverlay
 var ui_touch_overlay: CouchTouchOverlay
 var ui_slot_btns: Array[Button] = []
 var ui_arena_btn: Button
@@ -384,6 +386,15 @@ func _build_ui() -> void:
 			sound_manager.set_sfx_volume(v)
 	)
 	canvas.add_child(ui_pause_overlay)
+
+	ui_match_over_overlay = CouchMatchOverOverlay.new()
+	ui_match_over_overlay.rematch_pressed.connect(func() -> void:
+		_clear_trophy()
+		if state_manager:
+			state_manager.start_series(_get_active_player_ids())
+	)
+	ui_match_over_overlay.lobby_pressed.connect(return_to_lobby)
+	canvas.add_child(ui_match_over_overlay)
 
 	ui_touch_overlay = CouchTouchOverlay.new()
 	ui_touch_overlay.primary_label = "BOOST"
@@ -776,6 +787,8 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 		return
 	match new_state:
 		RollStateManager.MatchState.LOBBY:
+			if ui_match_over_overlay:
+				ui_match_over_overlay.visible = false
 			if sound_manager:
 				sound_manager.play_music("lobby")
 			if ui_touch_overlay:
@@ -789,6 +802,8 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 				p.freeze = true
 				p.clear_powerup()
 		RollStateManager.MatchState.WARMUP:
+			if ui_match_over_overlay:
+				ui_match_over_overlay.visible = false
 			if sound_manager:
 				sound_manager.play_music("battle")
 			ui_status_label.visible = true
@@ -877,10 +892,12 @@ func _on_tournament_finished(champion_id: int) -> void:
 	if impact_particles:
 		impact_particles.spawn_sparks(spawn_pos, 12.0)
 	
-	if champion_id > 0:
-		ui_status_label.text = "👑 TOURNAMENT CHAMPION: PLAYER %d! 👑\n[SPACE / ESC]: Zurück zur Lobby" % champion_id
-	else:
-		ui_status_label.text = "UNENTSCHIEDEN!\n[SPACE / ESC]: Zurück zur Lobby"
+	var winner_txt := "👑 CHAMPION: PLAYER %d! 👑" % champion_id if champion_id > 0 else "🤝 UNENTSCHIEDEN! 🤝"
+	ui_status_label.text = winner_txt
+	ui_status_label.visible = false
+	if ui_match_over_overlay:
+		var score_txt := ui_series_label.text if ui_series_label else ""
+		ui_match_over_overlay.open(winner_txt, score_txt, "▶ REMATCH")
 
 func _on_series_score_updated(series_scores: Dictionary) -> void:
 	if not ui_series_label:
