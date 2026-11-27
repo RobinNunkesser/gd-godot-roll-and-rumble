@@ -25,10 +25,18 @@ func _ready() -> void:
 	_build_visuals()
 	_build_physics()
 
+const CUSTOM_BUMPER_PATH := "res://assets/models/custom_bumper.glb"
+
 func _build_visuals() -> void:
 	_mesh_pivot = Node3D.new()
 	_mesh_pivot.name = "MeshPivot"
 	add_child(_mesh_pivot)
+
+	if ResourceLoader.exists(CUSTOM_BUMPER_PATH):
+		var model: Node3D = load(CUSTOM_BUMPER_PATH).instantiate()
+		model.scale = Vector3.ONE * bumper_radius
+		_mesh_pivot.add_child(model)
+		return
 	
 	# Bumper-Ring (Glow-Zylinder)
 	_ring_mesh = MeshInstance3D.new()

@@ -30,9 +30,19 @@ func update_arena(_delta: float, _players: Array = []) -> void:
 	pass
 
 const TEXTURE_WOOD_PATH = "res://assets/textures/wood_deck.jpg"
+const TEXTURE_WOOD_NORMAL_PATH = "res://assets/textures/wood_deck_normal.png"
 const TEXTURE_HAZARD_PATH = "res://assets/textures/hazard_rotor.jpg"
+const TEXTURE_HAZARD_NORMAL_PATH = "res://assets/textures/hazard_rotor_normal.png"
 const TEXTURE_METAL_PATH = "res://assets/textures/metal_rim.jpg"
+const TEXTURE_METAL_NORMAL_PATH = "res://assets/textures/metal_rim_normal.png"
 const TEXTURE_ICE_PATH = "res://assets/textures/ice_slick.jpg"
+const TEXTURE_ICE_NORMAL_PATH = "res://assets/textures/ice_slick_normal.png"
+
+static func _apply_normal(mat: StandardMaterial3D, normal_path: String, scale: float = 0.7) -> void:
+	if ResourceLoader.exists(normal_path):
+		mat.normal_enabled = true
+		mat.normal_texture = load(normal_path)
+		mat.normal_scale = scale
 
 ## Universelle Material- & Textur-Factory
 ## Garantiert, dass spätere PBR-Texturen, Normal-Maps und Shader-Effekte
@@ -44,6 +54,7 @@ static func get_surface_material(mat_type: String = "wood", tint: Color = Color.
 			if ResourceLoader.exists(TEXTURE_WOOD_PATH):
 				mat.albedo_texture = load(TEXTURE_WOOD_PATH)
 				mat.uv1_scale = Vector3(4.0, 4.0, 4.0)
+			_apply_normal(mat, TEXTURE_WOOD_NORMAL_PATH, 0.75)
 			mat.albedo_color = Color(1.0, 0.95, 0.9) * tint
 			mat.roughness = 0.35
 			mat.metallic = 0.1
@@ -51,6 +62,7 @@ static func get_surface_material(mat_type: String = "wood", tint: Color = Color.
 			if ResourceLoader.exists(TEXTURE_METAL_PATH):
 				mat.albedo_texture = load(TEXTURE_METAL_PATH)
 				mat.uv1_scale = Vector3(2.0, 2.0, 2.0)
+			_apply_normal(mat, TEXTURE_METAL_NORMAL_PATH, 0.8)
 			mat.albedo_color = Color(0.85, 0.9, 0.95) * tint
 			mat.metallic = 0.75
 			mat.roughness = 0.3
@@ -58,6 +70,7 @@ static func get_surface_material(mat_type: String = "wood", tint: Color = Color.
 			if ResourceLoader.exists(TEXTURE_HAZARD_PATH):
 				mat.albedo_texture = load(TEXTURE_HAZARD_PATH)
 				mat.uv1_scale = Vector3(3.0, 3.0, 3.0)
+			_apply_normal(mat, TEXTURE_HAZARD_NORMAL_PATH, 0.85)
 			mat.albedo_color = Color(1.0, 0.9, 0.8) * tint
 			mat.metallic = 0.5
 			mat.roughness = 0.25
@@ -68,6 +81,7 @@ static func get_surface_material(mat_type: String = "wood", tint: Color = Color.
 			if ResourceLoader.exists(TEXTURE_METAL_PATH):
 				mat.albedo_texture = load(TEXTURE_METAL_PATH)
 				mat.uv1_scale = Vector3(2.0, 2.0, 2.0)
+			_apply_normal(mat, TEXTURE_METAL_NORMAL_PATH, 0.8)
 			mat.albedo_color = Color(0.4, 0.45, 0.5) * tint
 			mat.metallic = 0.85
 			mat.roughness = 0.25
@@ -82,6 +96,7 @@ static func get_surface_material(mat_type: String = "wood", tint: Color = Color.
 			if ResourceLoader.exists(TEXTURE_WOOD_PATH):
 				mat.albedo_texture = load(TEXTURE_WOOD_PATH)
 				mat.uv1_scale = Vector3(4.0, 4.0, 4.0)
+			_apply_normal(mat, TEXTURE_WOOD_NORMAL_PATH, 0.75)
 			mat.albedo_color = Color(0.9, 0.5, 0.5) * tint # Mahagoni / Rubin-gebeiztes Holz
 			mat.metallic = 0.25
 			mat.roughness = 0.35
@@ -89,6 +104,7 @@ static func get_surface_material(mat_type: String = "wood", tint: Color = Color.
 			if ResourceLoader.exists(TEXTURE_ICE_PATH):
 				mat.albedo_texture = load(TEXTURE_ICE_PATH)
 				mat.uv1_scale = Vector3(3.0, 3.0, 3.0)
+			_apply_normal(mat, TEXTURE_ICE_NORMAL_PATH, 0.5)
 			mat.albedo_color = Color(0.85, 0.95, 1.0) * tint
 			mat.roughness = 0.04
 			mat.metallic = 0.15

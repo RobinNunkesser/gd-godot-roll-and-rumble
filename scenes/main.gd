@@ -679,6 +679,8 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 		return
 	match new_state:
 		RollStateManager.MatchState.LOBBY:
+			if sound_manager:
+				sound_manager.play_music("lobby")
 			ui_status_label.visible = false
 			_clear_trophy()
 			if powerup_spawner:
@@ -688,6 +690,8 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 				p.freeze = true
 				p.clear_powerup()
 		RollStateManager.MatchState.WARMUP:
+			if sound_manager:
+				sound_manager.play_music("battle")
 			ui_status_label.visible = true
 			ui_status_label.text = "3"
 			_clear_trophy()
@@ -717,6 +721,8 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 				if p.control_type != PlayerBall.ControlType.OFF:
 					p.freeze = false
 		RollStateManager.MatchState.SUDDEN_DEATH:
+			if sound_manager:
+				sound_manager.play_music("sudden_death")
 			ui_status_label.visible = true
 			ui_status_label.text = "🔥 SUDDEN DEATH! 🔥"
 		RollStateManager.MatchState.ROUND_OVER:
@@ -732,6 +738,8 @@ func _on_state_changed(new_state: RollStateManager.MatchState) -> void:
 				p.freeze = true
 				p.clear_powerup()
 		RollStateManager.MatchState.MATCH_OVER:
+			if sound_manager:
+				sound_manager.play_music("none")
 			ui_status_label.visible = true
 			if powerup_spawner:
 				powerup_spawner.clear_tokens()

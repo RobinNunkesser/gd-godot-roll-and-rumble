@@ -12,10 +12,40 @@ var _light: OmniLight3D
 func _ready() -> void:
 	_build_trophy()
 
+const CUSTOM_TROPHY_PATH := "res://assets/models/custom_trophy.glb"
+
 func _build_trophy() -> void:
 	_mesh_pivot = Node3D.new()
 	_mesh_pivot.name = "TrophyPivot"
 	add_child(_mesh_pivot)
+
+	if ResourceLoader.exists(CUSTOM_TROPHY_PATH):
+		var model: Node3D = load(CUSTOM_TROPHY_PATH).instantiate()
+		_mesh_pivot.add_child(model)
+	else:
+		_build_fallback_trophy()
+
+	# 6. Goldener Lichtschein (OmniLight3D)
+	_light = OmniLight3D.new()
+	_light.name = "OmniLight3D"
+	_light.light_color = Color(1.0, 0.85, 0.3)
+	_light.light_energy = 2.5
+	_light.omni_range = 8.0
+	_light.position = Vector3(0, 1.6, 0)
+	add_child(_light)
+
+	# 7. 3D Billboard Label
+	_billboard_label = Label3D.new()
+	_billboard_label.name = "Label3D"
+	_billboard_label.text = "🏆 CHAMPION 🏆"
+	_billboard_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_billboard_label.font_size = 38
+	_billboard_label.pixel_size = 0.009
+	_billboard_label.position = Vector3(0, 2.25, 0)
+	_billboard_label.modulate = Color(1.0, 0.9, 0.3)
+	add_child(_billboard_label)
+
+func _build_fallback_trophy() -> void:
 	
 	# PBR Gold-Material
 	var gold_mat = StandardMaterial3D.new()
@@ -89,26 +119,6 @@ func _build_trophy() -> void:
 	handle_r_inst.position = Vector3(0.68, 1.45, 0)
 	handle_r_inst.rotation_degrees = Vector3(0, 0, -15)
 	_mesh_pivot.add_child(handle_r_inst)
-	
-	# 6. Goldener Lichtschein (OmniLight3D)
-	_light = OmniLight3D.new()
-	_light.name = "OmniLight3D"
-	_light.light_color = Color(1.0, 0.85, 0.3)
-	_light.light_energy = 2.5
-	_light.omni_range = 8.0
-	_light.position = Vector3(0, 1.6, 0)
-	add_child(_light)
-	
-	# 7. 3D Billboard Label
-	_billboard_label = Label3D.new()
-	_billboard_label.name = "Label3D"
-	_billboard_label.text = "🏆 CHAMPION 🏆"
-	_billboard_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_billboard_label.font_size = 38
-	_billboard_label.pixel_size = 0.009
-	_billboard_label.position = Vector3(0, 2.25, 0)
-	_billboard_label.modulate = Color(1.0, 0.9, 0.3)
-	add_child(_billboard_label)
 
 func _process(delta: float) -> void:
 	_anim_timer += delta * 2.0

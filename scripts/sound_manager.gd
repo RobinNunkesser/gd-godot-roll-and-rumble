@@ -18,6 +18,9 @@ static var instance: RollSoundManager
 var _players: Array[AudioStreamPlayer] = []
 var _pool_size: int = 8
 var _current_player_idx: int = 0
+var _music_player: AudioStreamPlayer
+var _music_tracks: Dictionary = {}
+var _current_music_key: String = ""
 
 func _init() -> void:
 	name = "SoundManager"
@@ -27,6 +30,38 @@ func _init() -> void:
 func _ready() -> void:
 	instance = self
 	_setup_player_pool()
+	_setup_music_player()
+
+func _setup_music_player() -> void:
+	_music_player = AudioStreamPlayer.new()
+	_music_player.name = "MusicPlayer"
+	_music_player.bus = "Master"
+	_music_player.volume_db = -10.0
+	add_child(_music_player)
+	var paths := {
+		"lobby": "res://assets/audio/music/music_lobby.ogg",
+		"battle": "res://assets/audio/music/music_battle.ogg",
+		"sudden_death": "res://assets/audio/music/music_sudden_death.ogg",
+	}
+	for k in paths:
+		if ResourceLoader.exists(paths[k]):
+			_music_tracks[k] = load(paths[k])
+
+func play_music(track_key: String) -> void:
+	if not is_inside_tree() or _music_player == null:
+		return
+	if track_key == "" or track_key == "none":
+		_current_music_key = ""
+		_music_player.stop()
+		return
+	if _current_music_key == track_key and _music_player.playing:
+		return
+	var stream = _music_tracks.get(track_key)
+	if stream == null:
+		return
+	_current_music_key = track_key
+	_music_player.stream = stream
+	_music_player.play()
 
 func _setup_player_pool() -> void:
 	for i in range(_pool_size):
