@@ -242,6 +242,13 @@ func show_page(page: Page) -> void:
 	current_page = page
 	for p in _pages:
 		_pages[p].visible = (p == page)
+	if page == Page.SETTINGS:
+		if _master_slider:
+			_master_slider.set_value_no_signal(CouchNav.get_bus_linear(&"Master", _master_slider.value))
+		if _music_slider:
+			_music_slider.set_value_no_signal(CouchNav.get_bus_linear(&"Music", _music_slider.value))
+		if _sfx_slider:
+			_sfx_slider.set_value_no_signal(CouchNav.get_bus_linear(&"SFX", _sfx_slider.value))
 	if page == Page.MAIN:
 		back_to_main.emit()
 		if is_instance_valid(_start_btn):

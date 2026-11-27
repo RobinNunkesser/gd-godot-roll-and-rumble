@@ -56,6 +56,7 @@ var ui_slot_cards: Array[CouchPlayerCard] = []
 var player_names: Array[String] = ["P1", "P2", "P3", "P4"]
 var couch_lb: CouchLeaderboard
 var ui_name_modal: CouchNameModal
+var ui_lb_table_lbl: Label
 var ui_arena_btn: Button
 var ui_lobby_start_btn: Button
 var ui_arena_card: Panel
@@ -367,12 +368,32 @@ func _build_ui() -> void:
 
 	# Subpage: EXTRA (Bestenliste)
 	shell.enable_extra_page("🏆 BESTENLISTE")
+	ui_lb_table_lbl = Label.new()
+	ui_lb_table_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_lb_table_lbl.add_theme_font_size_override("font_size", 16)
+	ui_lb_table_lbl.text = couch_lb.format_table("KOs")
+	shell.extra_box.add_child(ui_lb_table_lbl)
+
+	var lb_row := HBoxContainer.new()
+	lb_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	lb_row.add_theme_constant_override("separation", 12)
+	shell.extra_box.add_child(lb_row)
+
 	ui_leaderboard_btn = Button.new()
-	ui_leaderboard_btn.text = "EWIGE BESTENLISTE ÖFFNEN"
-	ui_leaderboard_btn.custom_minimum_size = Vector2(340, 48)
-	ui_leaderboard_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ui_leaderboard_btn.text = "DETAIL-STATISTIK"
+	ui_leaderboard_btn.custom_minimum_size = Vector2(220, 42)
 	ui_leaderboard_btn.pressed.connect(func() -> void: toggle_leaderboard(true))
-	shell.extra_box.add_child(ui_leaderboard_btn)
+	lb_row.add_child(ui_leaderboard_btn)
+
+	var lb_reset_btn := Button.new()
+	lb_reset_btn.text = "ZURÜCKSETZEN"
+	lb_reset_btn.custom_minimum_size = Vector2(220, 42)
+	lb_reset_btn.pressed.connect(func() -> void:
+		couch_lb.reset_all()
+		ui_lb_table_lbl.text = couch_lb.format_table("KOs")
+	)
+	lb_row.add_child(lb_reset_btn)
+	CouchNav.wire_row_focus([ui_leaderboard_btn, lb_reset_btn], true)
 	shell.wire_subpage_focus(CouchMenuShell.Page.EXTRA, [ui_leaderboard_btn])
 
 	canvas.add_child(ui_lobby_panel)
@@ -937,6 +958,8 @@ func _on_tournament_finished(champion_id: int) -> void:
 			winners_h.append(winner_name)
 		var is_cup := state_manager != null and state_manager.current_match_mode != RollStateManager.MatchMode.SINGLE_MATCH
 		couch_lb.record_match(active_h, winners_h, is_cup)
+		if ui_lb_table_lbl:
+			ui_lb_table_lbl.text = couch_lb.format_table("KOs")
 	var winner_txt := "👑 CHAMPION: %s! 👑" % winner_name if winner_name != "" else "🤝 UNENTSCHIEDEN! 🤝"
 	ui_status_label.text = winner_txt
 	ui_status_label.visible = false

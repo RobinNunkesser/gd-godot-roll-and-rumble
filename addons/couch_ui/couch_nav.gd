@@ -80,3 +80,11 @@ static func activate_focused(vp: Viewport) -> bool:
 		focused.pressed.emit()
 		return true
 	return false
+
+static func get_bus_linear(bus_name: StringName, fallback: float = 1.0) -> float:
+	var idx := AudioServer.get_bus_index(bus_name)
+	if idx < 0:
+		return fallback
+	if AudioServer.is_bus_mute(idx):
+		return 0.0
+	return clampf(db_to_linear(AudioServer.get_bus_volume_db(idx)), 0.0, 1.0)

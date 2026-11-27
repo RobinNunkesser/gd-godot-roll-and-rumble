@@ -160,6 +160,12 @@ func refresh_focus() -> void:
 	CouchNav.wire_vertical_focus(order, true)
 
 func open() -> void:
+	if _master_slider:
+		_master_slider.set_value_no_signal(CouchNav.get_bus_linear(&"Master", _master_slider.value))
+	if _music_slider:
+		_music_slider.set_value_no_signal(CouchNav.get_bus_linear(&"Music", _music_slider.value))
+	if _sfx_slider:
+		_sfx_slider.set_value_no_signal(CouchNav.get_bus_linear(&"SFX", _sfx_slider.value))
 	visible = true
 	get_tree().paused = true
 	if _resume_btn:
