@@ -44,6 +44,9 @@ var camera: SharedArenaCamera
 var ui_lobby_panel: Control
 var ui_pause_overlay: CouchPauseOverlay
 var ui_touch_overlay: CouchTouchOverlay
+var ui_slot_btns: Array[Button] = []
+var ui_arena_btn: Button
+var ui_lobby_start_btn: Button
 var ui_arena_card: Panel
 var ui_arena_title_label: Label
 var ui_arena_desc_label: Label
@@ -275,6 +278,7 @@ func _build_ui() -> void:
 	ui_lobby_panel.add_child(subtitle)
 	
 	ui_slot_labels.clear()
+	ui_slot_btns.clear()
 	var col_width = 260
 	var start_x = 80
 	for i in range(4):
@@ -302,14 +306,14 @@ func _build_ui() -> void:
 		card.add_child(slot_lbl)
 		ui_slot_labels.append(slot_lbl)
 		
-		var key_hint = Label.new()
-		key_hint.text = "Taste [%d] drücken\nzum Wechseln" % (i + 1)
-		key_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		key_hint.position = Vector2(10, 260)
-		key_hint.size = Vector2(col_width - 20, 60)
-		key_hint.add_theme_font_size_override("font_size", 16)
-		key_hint.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75))
-		card.add_child(key_hint)
+		var slot_btn := Button.new()
+		slot_btn.text = "WECHSELN [%d]" % (i + 1)
+		slot_btn.position = Vector2(20, 270)
+		slot_btn.size = Vector2(col_width - 40, 48)
+		slot_btn.focus_mode = Control.FOCUS_ALL
+		slot_btn.pressed.connect(cycle_player_slot.bind(i))
+		card.add_child(slot_btn)
+		ui_slot_btns.append(slot_btn)
 	
 	# Kompakte Optionsleiste: Match-Modus, Power-Ups, Bestenliste (y=500, H=50)
 	ui_options_card = Panel.new()
@@ -363,22 +367,41 @@ func _build_ui() -> void:
 	
 	ui_arena_title_label = Label.new()
 	ui_arena_title_label.position = Vector2(20, 10)
-	ui_arena_title_label.size = Vector2(1060, 32)
-	ui_arena_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_arena_title_label.size = Vector2(640, 32)
+	ui_arena_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	ui_arena_title_label.add_theme_font_size_override("font_size", 22)
 	ui_arena_title_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	ui_arena_card.add_child(ui_arena_title_label)
 	
 	ui_arena_desc_label = Label.new()
 	ui_arena_desc_label.position = Vector2(20, 48)
-	ui_arena_desc_label.size = Vector2(1060, 38)
-	ui_arena_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ui_arena_desc_label.add_theme_font_size_override("font_size", 16)
+	ui_arena_desc_label.size = Vector2(640, 38)
+	ui_arena_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	ui_arena_desc_label.add_theme_font_size_override("font_size", 15)
 	ui_arena_desc_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
 	ui_arena_card.add_child(ui_arena_desc_label)
-	
+
+	ui_arena_btn = Button.new()
+	ui_arena_btn.text = "ARENA WECHSELN"
+	ui_arena_btn.position = Vector2(675, 22)
+	ui_arena_btn.size = Vector2(195, 50)
+	ui_arena_btn.focus_mode = Control.FOCUS_ALL
+	ui_arena_btn.pressed.connect(cycle_arena)
+	ui_arena_card.add_child(ui_arena_btn)
+
+	ui_lobby_start_btn = Button.new()
+	ui_lobby_start_btn.text = "▶ START"
+	ui_lobby_start_btn.position = Vector2(885, 22)
+	ui_lobby_start_btn.size = Vector2(195, 50)
+	ui_lobby_start_btn.focus_mode = Control.FOCUS_ALL
+	ui_lobby_start_btn.pressed.connect(start_match_from_lobby)
+	ui_arena_card.add_child(ui_lobby_start_btn)
+
 	ui_lobby_panel.theme = CouchTheme.build()
 	canvas.add_child(ui_lobby_panel)
+	call_deferred("_setup_lobby_focus")
+	if is_instance_valid(ui_lobby_start_btn):
+		ui_lobby_start_btn.call_deferred("grab_focus")
 
 	ui_pause_overlay = CouchPauseOverlay.new()
 	ui_pause_overlay.restarted.connect(func() -> void:
@@ -510,6 +533,32 @@ func toggle_p2_bot() -> void:
 			player2.set_control_type(PlayerBall.ControlType.AI_BOT)
 		_update_lobby_ui()
 
+func _setup_lobby_focus() -> void:
+	CouchNav.wire_row_focus(ui_slot_btns, true)
+	var opt_row := [ui_mode_toggle_btn, ui_powerup_toggle_btn, ui_leaderboard_btn]
+	CouchNav.wire_row_focus(opt_row, true)
+	var bottom_row := [ui_arena_btn, ui_lobby_start_btn]
+	CouchNav.wire_row_focus(bottom_row, true)
+
+	for i in range(ui_slot_btns.size()):
+		var sb := ui_slot_btns[i]
+		var target_opt: Control = ui_mode_toggle_btn if i == 0 else (ui_powerup_toggle_btn if i <= 2 else ui_leaderboard_btn)
+		var target_bot: Control = ui_arena_btn if i < 2 else ui_lobby_start_btn
+		sb.focus_neighbor_bottom = sb.get_path_to(target_opt)
+		sb.focus_neighbor_top = sb.get_path_to(target_bot)
+
+	ui_mode_toggle_btn.focus_neighbor_top = ui_mode_toggle_btn.get_path_to(ui_slot_btns[0])
+	ui_mode_toggle_btn.focus_neighbor_bottom = ui_mode_toggle_btn.get_path_to(ui_arena_btn)
+	ui_powerup_toggle_btn.focus_neighbor_top = ui_powerup_toggle_btn.get_path_to(ui_slot_btns[1])
+	ui_powerup_toggle_btn.focus_neighbor_bottom = ui_powerup_toggle_btn.get_path_to(ui_arena_btn)
+	ui_leaderboard_btn.focus_neighbor_top = ui_leaderboard_btn.get_path_to(ui_slot_btns[3])
+	ui_leaderboard_btn.focus_neighbor_bottom = ui_leaderboard_btn.get_path_to(ui_lobby_start_btn)
+
+	ui_arena_btn.focus_neighbor_top = ui_arena_btn.get_path_to(ui_powerup_toggle_btn)
+	ui_arena_btn.focus_neighbor_bottom = ui_arena_btn.get_path_to(ui_slot_btns[0])
+	ui_lobby_start_btn.focus_neighbor_top = ui_lobby_start_btn.get_path_to(ui_leaderboard_btn)
+	ui_lobby_start_btn.focus_neighbor_bottom = ui_lobby_start_btn.get_path_to(ui_slot_btns[3])
+
 func _unhandled_input(event: InputEvent) -> void:
 	if ui_pause_overlay and ui_pause_overlay.visible:
 		return
@@ -518,12 +567,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			if CouchNav.is_back(event) or (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_L):
 				toggle_leaderboard(false)
 				return
-		if CouchNav.is_confirm(event) or CouchNav.is_start(event):
-			if not (event is InputEventKey and event.keycode == KEY_ESCAPE):
-				start_match_from_lobby()
-				return
-		if CouchNav.is_nav_left(event) or CouchNav.is_nav_right(event):
-			cycle_arena()
+		if CouchNav.is_start(event) and not (event is InputEventKey and event.keycode == KEY_ESCAPE):
+			start_match_from_lobby()
 			return
 	else:
 		if CouchNav.is_start(event):
@@ -675,6 +720,8 @@ func return_to_lobby() -> void:
 	_update_lobby_ui()
 	_update_arena_ui()
 	_update_mode_ui()
+	if is_instance_valid(ui_lobby_start_btn):
+		ui_lobby_start_btn.call_deferred("grab_focus")
 
 func restart_game() -> void:
 	_clear_trophy()

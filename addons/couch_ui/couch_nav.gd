@@ -37,3 +37,37 @@ static func is_nav_right(event: InputEvent) -> bool:
 	if event is InputEventJoypadButton and event.pressed:
 		return event.button_index == JOY_BUTTON_DPAD_RIGHT
 	return false
+
+static func wire_vertical_focus(controls: Array, wrap: bool = true) -> void:
+	var valid: Array[Control] = []
+	for c in controls:
+		if is_instance_valid(c) and c is Control:
+			c.focus_mode = Control.FOCUS_ALL
+			valid.append(c)
+	var n := valid.size()
+	for i in range(n):
+		if i > 0:
+			valid[i].focus_neighbor_top = valid[i].get_path_to(valid[i - 1])
+		elif wrap and n > 1:
+			valid[i].focus_neighbor_top = valid[i].get_path_to(valid[n - 1])
+		if i < n - 1:
+			valid[i].focus_neighbor_bottom = valid[i].get_path_to(valid[i + 1])
+		elif wrap and n > 1:
+			valid[i].focus_neighbor_bottom = valid[i].get_path_to(valid[0])
+
+static func wire_row_focus(controls: Array, wrap: bool = true) -> void:
+	var valid: Array[Control] = []
+	for c in controls:
+		if is_instance_valid(c) and c is Control:
+			c.focus_mode = Control.FOCUS_ALL
+			valid.append(c)
+	var n := valid.size()
+	for i in range(n):
+		if i > 0:
+			valid[i].focus_neighbor_left = valid[i].get_path_to(valid[i - 1])
+		elif wrap and n > 1:
+			valid[i].focus_neighbor_left = valid[i].get_path_to(valid[n - 1])
+		if i < n - 1:
+			valid[i].focus_neighbor_right = valid[i].get_path_to(valid[i + 1])
+		elif wrap and n > 1:
+			valid[i].focus_neighbor_right = valid[i].get_path_to(valid[0])

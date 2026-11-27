@@ -17,6 +17,7 @@ var _restart_btn: Button
 var _lobby_btn: Button
 var _music_btn: Button
 var _sfx_btn: Button
+var _fs_btn: Button
 
 func _init() -> void:
 	name = "CouchPauseOverlay"
@@ -92,6 +93,17 @@ func _build_ui() -> void:
 	)
 	vbox.add_child(_sfx_btn)
 
+	_fs_btn = Button.new()
+	_fs_btn.text = "Vollbild: AN" if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN else "Vollbild: AUS"
+	_fs_btn.pressed.connect(func() -> void:
+		var is_fs := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if is_fs else DisplayServer.WINDOW_MODE_FULLSCREEN)
+		_fs_btn.text = "Vollbild: AUS" if is_fs else "Vollbild: AN"
+	)
+	vbox.add_child(_fs_btn)
+
+	CouchNav.wire_vertical_focus([_resume_btn, _restart_btn, _lobby_btn, _music_btn, _sfx_btn, _fs_btn], true)
+
 	var hint := Label.new()
 	hint.text = "[D-Pad / ↑↓] Wählen  |  [A / Enter] OK  |  [B / Esc] Weiter"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -103,7 +115,7 @@ func open() -> void:
 	visible = true
 	get_tree().paused = true
 	if _resume_btn:
-		_resume_btn.grab_focus()
+		_resume_btn.call_deferred("grab_focus")
 
 func close() -> void:
 	visible = false
