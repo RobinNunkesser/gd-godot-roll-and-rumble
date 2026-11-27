@@ -27,6 +27,8 @@ const CouchPlayerCard = preload("res://addons/couch_ui/couch_player_card.gd")
 const CouchMenuShell = preload("res://addons/couch_ui/couch_menu_shell.gd")
 const CouchDefaults = preload("res://addons/couch_ui/couch_defaults.gd")
 const CouchMatchOverOverlay = preload("res://addons/couch_ui/couch_match_over_overlay.gd")
+const CouchLeaderboard = preload("res://addons/couch_ui/couch_leaderboard.gd")
+const CouchNameModal = preload("res://addons/couch_ui/couch_name_modal.gd")
 
 var state_manager: RollStateManager
 var leaderboard: LeaderboardManager
@@ -50,6 +52,10 @@ var ui_pause_overlay: CouchPauseOverlay
 var ui_match_over_overlay: CouchMatchOverOverlay
 var ui_touch_overlay: CouchTouchOverlay
 var ui_slot_btns: Array[Button] = []
+var ui_slot_cards: Array[CouchPlayerCard] = []
+var player_names: Array[String] = ["P1", "P2", "P3", "P4"]
+var couch_lb: CouchLeaderboard
+var ui_name_modal: CouchNameModal
 var ui_arena_btn: Button
 var ui_lobby_start_btn: Button
 var ui_arena_card: Panel
@@ -283,8 +289,10 @@ func _build_ui() -> void:
 	ui_lobby_panel = shell
 
 	# Subpage: PLAYERS
+	couch_lb = CouchLeaderboard.new("roll_and_rumble")
 	ui_slot_labels.clear()
 	ui_slot_btns.clear()
+	ui_slot_cards.clear()
 	var cards_row := HBoxContainer.new()
 	cards_row.add_theme_constant_override("separation", 16)
 	cards_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -292,10 +300,13 @@ func _build_ui() -> void:
 	shell.players_box.add_child(cards_row)
 	for i in range(4):
 		var card := CouchPlayerCard.new(i, p_colors[i], false)
-		card.custom_minimum_size = Vector2(205, 290)
+		card.custom_minimum_size = Vector2(205, 310)
 		card.control_cycled.connect(cycle_player_slot)
+		card.name_clicked.connect(_on_slot_name_clicked)
 		cards_row.add_child(card)
 		card.set_title(p_names[i], p_colors[i])
+		card.set_player_name(player_names[i])
+		ui_slot_cards.append(card)
 		ui_slot_labels.append(card.status_label)
 		card.ctrl_btn.text = "STEUERUNG"
 		ui_slot_btns.append(card.ctrl_btn)
@@ -395,6 +406,16 @@ func _build_ui() -> void:
 	)
 	ui_match_over_overlay.lobby_pressed.connect(return_to_lobby)
 	canvas.add_child(ui_match_over_overlay)
+
+	ui_name_modal = CouchNameModal.new()
+	ui_name_modal.name_confirmed.connect(func(slot_idx: int, new_name: String) -> void:
+		player_names[slot_idx] = new_name
+		if slot_idx < ui_slot_cards.size():
+			ui_slot_cards[slot_idx].set_player_name(new_name)
+		if couch_lb:
+			couch_lb.add_recent_name(new_name)
+	)
+	canvas.add_child(ui_name_modal)
 
 	ui_touch_overlay = CouchTouchOverlay.new()
 	ui_touch_overlay.primary_label = "BOOST"
@@ -515,6 +536,11 @@ func toggle_p2_bot() -> void:
 			player2.set_control_type(PlayerBall.ControlType.AI_BOT)
 		_update_lobby_ui()
 	_update_menu_summary()
+
+func _on_slot_name_clicked(slot_idx: int) -> void:
+	if ui_name_modal:
+		var rec: Array = couch_lb.data.get("recent_names", []) if couch_lb else []
+		ui_name_modal.open(slot_idx, player_names[slot_idx], rec)
 
 func _apply_auto_defaults() -> void:
 	var slot_defaults := CouchDefaults.detect_slot_modes(4)
@@ -892,7 +918,18 @@ func _on_tournament_finished(champion_id: int) -> void:
 	if impact_particles:
 		impact_particles.spawn_sparks(spawn_pos, 12.0)
 	
-	var winner_txt := "👑 CHAMPION: PLAYER %d! 👑" % champion_id if champion_id > 0 else "🤝 UNENTSCHIEDEN! 🤝"
+	var winner_name := player_names[champion_id - 1] if (champion_id > 0 and champion_id <= player_names.size()) else ""
+	if couch_lb:
+		var active_h: Array[String] = []
+		for i in range(players.size()):
+			if players[i].control_type != PlayerBall.ControlType.OFF and players[i].control_type != PlayerBall.ControlType.AI_BOT:
+				active_h.append(player_names[i])
+		var winners_h: Array[String] = []
+		if winner_name != "" and players[champion_id - 1].control_type != PlayerBall.ControlType.AI_BOT:
+			winners_h.append(winner_name)
+		var is_cup := state_manager != null and state_manager.current_match_mode != RollStateManager.MatchMode.SINGLE_MATCH
+		couch_lb.record_match(active_h, winners_h, is_cup)
+	var winner_txt := "👑 CHAMPION: %s! 👑" % winner_name if winner_name != "" else "🤝 UNENTSCHIEDEN! 🤝"
 	ui_status_label.text = winner_txt
 	ui_status_label.visible = false
 	if ui_match_over_overlay:

@@ -5,11 +5,13 @@ extends PanelContainer
 
 signal control_cycled(slot_index: int)
 signal team_toggled(slot_index: int)
+signal name_clicked(slot_index: int)
 
 var slot_index: int = 0
 var show_team_button: bool = false
 
 var title_label: Label
+var name_btn: Button
 var team_btn: Button
 var status_label: Label
 var ctrl_btn: Button
@@ -36,6 +38,14 @@ func _init(idx: int = 0, border_color: Color = Color(0.2, 0.45, 0.7, 0.8), with_
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.add_theme_font_size_override("font_size", 20)
 	vbox.add_child(title_label)
+
+	name_btn = Button.new()
+	name_btn.name = "SlotNameBtn%d" % slot_index
+	name_btn.text = "✏️ P%d" % (slot_index + 1)
+	name_btn.custom_minimum_size = Vector2(0, 34)
+	name_btn.focus_mode = Control.FOCUS_ALL
+	name_btn.pressed.connect(func() -> void: name_clicked.emit(slot_index))
+	vbox.add_child(name_btn)
 
 	team_btn = Button.new()
 	team_btn.name = "SlotTeamBtn%d" % slot_index
@@ -66,6 +76,10 @@ func set_title(text: String, color: Color = Color.WHITE) -> void:
 	if title_label:
 		title_label.text = text
 		title_label.add_theme_color_override("font_color", color)
+
+func set_player_name(p_name: String) -> void:
+	if name_btn:
+		name_btn.text = "✏️ %s" % p_name
 
 func set_status(text: String, color: Color = Color(0.92, 0.95, 1.0)) -> void:
 	if status_label:
