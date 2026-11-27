@@ -22,6 +22,7 @@ var _cancel_btn: Button
 func _init() -> void:
 	name = "CouchNameModal"
 	visible = false
+	z_index = 200
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	theme = CouchTheme.build()
 	_build_ui()
@@ -154,6 +155,7 @@ func open(slot_idx: int, current_name: String, recent_names: Array = []) -> void
 		_recent_row.add_child(chip)
 		shown += 1
 	visible = true
+	move_to_front()
 	if not _key_btns.is_empty():
 		_key_btns[0].call_deferred("grab_focus")
 
