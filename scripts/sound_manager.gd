@@ -21,6 +21,8 @@ var _current_player_idx: int = 0
 var _music_player: AudioStreamPlayer
 var _music_tracks: Dictionary = {}
 var _current_music_key: String = ""
+var _music_muted: bool = false
+var _sfx_muted: bool = false
 
 func _init() -> void:
 	name = "SoundManager"
@@ -72,11 +74,19 @@ func _setup_player_pool() -> void:
 		_players.append(p)
 
 func _get_available_player() -> AudioStreamPlayer:
-	if _players.is_empty():
+	if _sfx_muted or _players.is_empty():
 		return null
 	var p = _players[_current_player_idx]
 	_current_player_idx = (_current_player_idx + 1) % _players.size()
 	return p
+
+func set_music_muted(muted: bool) -> void:
+	_music_muted = muted
+	if _music_player:
+		_music_player.volume_db = -80.0 if muted else -10.0
+
+func set_sfx_muted(muted: bool) -> void:
+	_sfx_muted = muted
 
 ## 1. Ramm- und Kollisionsgeräusch (dynamisch nach Wucht)
 func play_impact(force: float) -> void:

@@ -19,6 +19,9 @@ const PowerUpSpawner = preload("res://scripts/powerup_spawner.gd")
 const PowerUpToken = preload("res://scripts/powerup_token.gd")
 const LeaderboardManager = preload("res://scripts/leaderboard_manager.gd")
 const Trophy3D = preload("res://scripts/trophy_3d.gd")
+const CouchNav = preload("res://addons/couch_ui/couch_nav.gd")
+const CouchTheme = preload("res://addons/couch_ui/couch_theme.gd")
+const CouchPauseOverlay = preload("res://addons/couch_ui/couch_pause_overlay.gd")
 
 var state_manager: RollStateManager
 var leaderboard: LeaderboardManager
@@ -38,6 +41,7 @@ var players: Array[PlayerBall] = []
 var camera: SharedArenaCamera
 
 var ui_lobby_panel: Control
+var ui_pause_overlay: CouchPauseOverlay
 var ui_arena_card: Panel
 var ui_arena_title_label: Label
 var ui_arena_desc_label: Label
@@ -371,7 +375,24 @@ func _build_ui() -> void:
 	ui_arena_desc_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
 	ui_arena_card.add_child(ui_arena_desc_label)
 	
+	ui_lobby_panel.theme = CouchTheme.build()
 	canvas.add_child(ui_lobby_panel)
+
+	ui_pause_overlay = CouchPauseOverlay.new()
+	ui_pause_overlay.restarted.connect(func() -> void:
+		if state_manager:
+			state_manager.reset_match()
+	)
+	ui_pause_overlay.returned_to_lobby.connect(return_to_lobby)
+	ui_pause_overlay.music_toggled.connect(func(m: bool) -> void:
+		if sound_manager:
+			sound_manager.set_music_muted(m)
+	)
+	ui_pause_overlay.sfx_toggled.connect(func(m: bool) -> void:
+		if sound_manager:
+			sound_manager.set_sfx_muted(m)
+	)
+	canvas.add_child(ui_pause_overlay)
 	
 	# --- Modale Bestenliste (Overlay) ---
 	ui_leaderboard_modal = Control.new()
@@ -476,13 +497,37 @@ func toggle_p2_bot() -> void:
 		_update_lobby_ui()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if ui_pause_overlay and ui_pause_overlay.visible:
+		return
+	if state_manager.current_state == RollStateManager.MatchState.LOBBY:
+		if ui_leaderboard_modal and ui_leaderboard_modal.visible:
+			if CouchNav.is_back(event) or (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_L):
+				toggle_leaderboard(false)
+				return
+		if CouchNav.is_confirm(event) or CouchNav.is_start(event):
+			if not (event is InputEventKey and event.keycode == KEY_ESCAPE):
+				start_match_from_lobby()
+				return
+		if CouchNav.is_nav_left(event) or CouchNav.is_nav_right(event):
+			cycle_arena()
+			return
+	else:
+		if CouchNav.is_start(event):
+			if ui_pause_overlay:
+				ui_pause_overlay.open()
+			else:
+				return_to_lobby()
+			return
+		if CouchNav.is_confirm(event):
+			if state_manager.current_state == RollStateManager.MatchState.ROUND_OVER:
+				state_manager.start_next_round()
+				return
+			elif state_manager.current_state == RollStateManager.MatchState.MATCH_OVER:
+				return_to_lobby()
+				return
+
 	if event is InputEventKey and event.pressed and not event.echo:
 		if state_manager.current_state == RollStateManager.MatchState.LOBBY:
-			if ui_leaderboard_modal and ui_leaderboard_modal.visible:
-				if event.keycode == KEY_ESCAPE or event.keycode == KEY_L:
-					toggle_leaderboard(false)
-					return
-			
 			if event.keycode == KEY_1:
 				cycle_player_slot(0)
 			elif event.keycode == KEY_2:
@@ -491,7 +536,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				cycle_player_slot(2)
 			elif event.keycode == KEY_4:
 				cycle_player_slot(3)
-			elif event.keycode == KEY_T or event.keycode == KEY_A or event.keycode == KEY_LEFT or event.keycode == KEY_RIGHT:
+			elif event.keycode == KEY_T:
 				cycle_arena()
 			elif event.keycode == KEY_P:
 				toggle_powerups()
@@ -499,18 +544,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				cycle_match_mode()
 			elif event.keycode == KEY_L:
 				toggle_leaderboard()
-			elif event.keycode == KEY_SPACE or event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
-				start_match_from_lobby()
 		else:
-			if event.keycode == KEY_ESCAPE:
-				return_to_lobby()
-			elif event.keycode == KEY_B:
+			if event.keycode == KEY_B:
 				toggle_p2_bot()
-			elif event.keycode == KEY_SPACE or event.keycode == KEY_ENTER:
-				if state_manager.current_state == RollStateManager.MatchState.ROUND_OVER:
-					state_manager.start_next_round()
-				elif state_manager.current_state == RollStateManager.MatchState.MATCH_OVER:
-					return_to_lobby()
 
 func cycle_arena() -> void:
 	var total_types = BaseArena.ArenaType.values().size()
