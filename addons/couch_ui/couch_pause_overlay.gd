@@ -1,23 +1,27 @@
 class_name CouchPauseOverlay
 extends Control
 
-## Einheitliches Pause- & Audio-Overlay für Couch-Multiplayer-Spiele (Gamepad + Tastatur).
+## Einheitliches Pause- & Audio-Overlay für Couch-Multiplayer-Spiele (Gamepad + Tastatur + Touch).
 
 signal resumed
 signal restarted
 signal returned_to_lobby
+signal master_volume_changed(linear: float)
+signal music_volume_changed(linear: float)
+signal sfx_volume_changed(linear: float)
 signal music_toggled(muted: bool)
 signal sfx_toggled(muted: bool)
 
-var music_muted: bool = false
-var sfx_muted: bool = false
-
+var _master_slider: HSlider
+var _music_slider: HSlider
+var _sfx_slider: HSlider
 var _resume_btn: Button
 var _restart_btn: Button
 var _lobby_btn: Button
-var _music_btn: Button
-var _sfx_btn: Button
 var _fs_btn: Button
+var _custom_box: VBoxContainer
+var _custom_btns: Array[Button] = []
+var _hint_lbl: Label
 
 func _init() -> void:
 	name = "CouchPauseOverlay"
@@ -28,6 +32,29 @@ func _init() -> void:
 func _ready() -> void:
 	theme = CouchTheme.build()
 	_build_ui()
+
+func _make_slider_row(parent: VBoxContainer, label_text: String, initial: float, on_change: Callable) -> HSlider:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	parent.add_child(row)
+
+	var lbl := Label.new()
+	lbl.text = label_text
+	lbl.custom_minimum_size = Vector2(90, 0)
+	lbl.add_theme_font_size_override("font_size", 15)
+	row.add_child(lbl)
+
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.05
+	slider.value = initial
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.custom_minimum_size = Vector2(180, 26)
+	slider.focus_mode = Control.FOCUS_ALL
+	slider.value_changed.connect(on_change)
+	row.add_child(slider)
+	return slider
 
 func _build_ui() -> void:
 	var backdrop := ColorRect.new()
@@ -40,19 +67,31 @@ func _build_ui() -> void:
 	add_child(center)
 
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(360, 0)
+	card.custom_minimum_size = Vector2(390, 0)
 	center.add_child(card)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 12)
+	vbox.add_theme_constant_override("separation", 10)
 	card.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "PAUSE"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_font_size_override("font_size", 28)
 	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	vbox.add_child(title)
+
+	_master_slider = _make_slider_row(vbox, "Master", 1.0, func(v: float) -> void:
+		master_volume_changed.emit(v)
+	)
+	_music_slider = _make_slider_row(vbox, "Musik", 0.85, func(v: float) -> void:
+		music_volume_changed.emit(v)
+		music_toggled.emit(v <= 0.001)
+	)
+	_sfx_slider = _make_slider_row(vbox, "SFX", 1.0, func(v: float) -> void:
+		sfx_volume_changed.emit(v)
+		sfx_toggled.emit(v <= 0.001)
+	)
 
 	_resume_btn = Button.new()
 	_resume_btn.text = "Fortsetzen"
@@ -67,31 +106,9 @@ func _build_ui() -> void:
 	)
 	vbox.add_child(_restart_btn)
 
-	_lobby_btn = Button.new()
-	_lobby_btn.text = "Zurück zur Lobby"
-	_lobby_btn.pressed.connect(func() -> void:
-		close()
-		returned_to_lobby.emit()
-	)
-	vbox.add_child(_lobby_btn)
-
-	_music_btn = Button.new()
-	_music_btn.text = "Musik: AN"
-	_music_btn.pressed.connect(func() -> void:
-		music_muted = not music_muted
-		_music_btn.text = "Musik: AUS" if music_muted else "Musik: AN"
-		music_toggled.emit(music_muted)
-	)
-	vbox.add_child(_music_btn)
-
-	_sfx_btn = Button.new()
-	_sfx_btn.text = "SFX: AN"
-	_sfx_btn.pressed.connect(func() -> void:
-		sfx_muted = not sfx_muted
-		_sfx_btn.text = "SFX: AUS" if sfx_muted else "SFX: AN"
-		sfx_toggled.emit(sfx_muted)
-	)
-	vbox.add_child(_sfx_btn)
+	_custom_box = VBoxContainer.new()
+	_custom_box.add_theme_constant_override("separation", 8)
+	vbox.add_child(_custom_box)
 
 	_fs_btn = Button.new()
 	_fs_btn.text = "Vollbild: AN" if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN else "Vollbild: AUS"
@@ -102,14 +119,45 @@ func _build_ui() -> void:
 	)
 	vbox.add_child(_fs_btn)
 
-	CouchNav.wire_vertical_focus([_resume_btn, _restart_btn, _lobby_btn, _music_btn, _sfx_btn, _fs_btn], true)
+	_lobby_btn = Button.new()
+	_lobby_btn.text = "Zurück zur Lobby"
+	_lobby_btn.pressed.connect(func() -> void:
+		close()
+		returned_to_lobby.emit()
+	)
+	vbox.add_child(_lobby_btn)
 
-	var hint := Label.new()
-	hint.text = "[D-Pad / ↑↓] Wählen  |  [A / Enter] OK  |  [B / Esc] Weiter"
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.add_theme_font_size_override("font_size", 12)
-	hint.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
-	vbox.add_child(hint)
+	_hint_lbl = Label.new()
+	_hint_lbl.text = "[D-Pad / ↑↓] Wählen  |  [←→] Regler  |  [A] OK  |  [B/Esc] Weiter"
+	_hint_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hint_lbl.add_theme_font_size_override("font_size", 11)
+	_hint_lbl.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
+	vbox.add_child(_hint_lbl)
+
+	call_deferred("refresh_focus")
+
+func add_custom_button(label_text: String, cb: Callable) -> Button:
+	var btn := Button.new()
+	btn.text = label_text
+	btn.pressed.connect(cb)
+	if _custom_box:
+		_custom_box.add_child(btn)
+	_custom_btns.append(btn)
+	call_deferred("refresh_focus")
+	return btn
+
+func set_touch_mode(is_touch: bool) -> void:
+	if _hint_lbl:
+		_hint_lbl.visible = not is_touch
+
+func refresh_focus() -> void:
+	var order: Array = [_master_slider, _music_slider, _sfx_slider, _resume_btn, _restart_btn]
+	for b in _custom_btns:
+		if is_instance_valid(b):
+			order.append(b)
+	order.append(_fs_btn)
+	order.append(_lobby_btn)
+	CouchNav.wire_vertical_focus(order, true)
 
 func open() -> void:
 	visible = true

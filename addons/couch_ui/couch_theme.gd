@@ -43,4 +43,15 @@ static func build(accent: Color = Color(1.0, 0.78, 0.2)) -> Theme:
 	panel.set_content_margin_all(20)
 	theme.set_stylebox("panel", "PanelContainer", panel)
 
+	var slider_bg := StyleBoxFlat.new()
+	slider_bg.bg_color = Color(0.18, 0.22, 0.34, 0.95)
+	slider_bg.set_corner_radius_all(4)
+	slider_bg.set_content_margin_all(4)
+	var slider_fill := StyleBoxFlat.new()
+	slider_fill.bg_color = accent
+	slider_fill.set_corner_radius_all(4)
+	theme.set_stylebox("slider", "HSlider", slider_bg)
+	theme.set_stylebox("grabber_area", "HSlider", slider_fill)
+	theme.set_stylebox("grabber_area_highlight", "HSlider", slider_fill)
+
 	return theme

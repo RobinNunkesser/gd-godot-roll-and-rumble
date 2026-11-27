@@ -23,6 +23,9 @@ var _music_tracks: Dictionary = {}
 var _current_music_key: String = ""
 var _music_muted: bool = false
 var _sfx_muted: bool = false
+var _master_vol: float = 1.0
+var _music_vol: float = 0.85
+var _sfx_vol: float = 1.0
 
 func _init() -> void:
 	name = "SoundManager"
@@ -82,11 +85,27 @@ func _get_available_player() -> AudioStreamPlayer:
 
 func set_music_muted(muted: bool) -> void:
 	_music_muted = muted
-	if _music_player:
-		_music_player.volume_db = -80.0 if muted else -10.0
+	_apply_music_volume()
 
 func set_sfx_muted(muted: bool) -> void:
 	_sfx_muted = muted
+
+func set_master_volume(linear: float) -> void:
+	_master_vol = clampf(linear, 0.0, 1.0)
+	AudioServer.set_bus_volume_db(0, -80.0 if _master_vol <= 0.001 else linear_to_db(_master_vol))
+
+func set_music_volume(linear: float) -> void:
+	_music_vol = clampf(linear, 0.0, 1.0)
+	_music_muted = _music_vol <= 0.001
+	_apply_music_volume()
+
+func set_sfx_volume(linear: float) -> void:
+	_sfx_vol = clampf(linear, 0.0, 1.0)
+	_sfx_muted = _sfx_vol <= 0.001
+
+func _apply_music_volume() -> void:
+	if _music_player:
+		_music_player.volume_db = -80.0 if (_music_muted or _music_vol <= 0.001) else (-10.0 + linear_to_db(_music_vol))
 
 ## 1. Ramm- und Kollisionsgeräusch (dynamisch nach Wucht)
 func play_impact(force: float) -> void:

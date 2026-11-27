@@ -409,13 +409,17 @@ func _build_ui() -> void:
 			state_manager.reset_match()
 	)
 	ui_pause_overlay.returned_to_lobby.connect(return_to_lobby)
-	ui_pause_overlay.music_toggled.connect(func(m: bool) -> void:
+	ui_pause_overlay.master_volume_changed.connect(func(v: float) -> void:
 		if sound_manager:
-			sound_manager.set_music_muted(m)
+			sound_manager.set_master_volume(v)
 	)
-	ui_pause_overlay.sfx_toggled.connect(func(m: bool) -> void:
+	ui_pause_overlay.music_volume_changed.connect(func(v: float) -> void:
 		if sound_manager:
-			sound_manager.set_sfx_muted(m)
+			sound_manager.set_music_volume(v)
+	)
+	ui_pause_overlay.sfx_volume_changed.connect(func(v: float) -> void:
+		if sound_manager:
+			sound_manager.set_sfx_volume(v)
 	)
 	canvas.add_child(ui_pause_overlay)
 
@@ -430,6 +434,7 @@ func _build_ui() -> void:
 			player1.external_boost_pressed = true
 	)
 	add_child(ui_touch_overlay)
+	ui_pause_overlay.set_touch_mode(ui_touch_overlay.is_touch_active)
 	
 	# --- Modale Bestenliste (Overlay) ---
 	ui_leaderboard_modal = Control.new()
