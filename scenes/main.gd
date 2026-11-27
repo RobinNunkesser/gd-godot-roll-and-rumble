@@ -24,6 +24,8 @@ const CouchTheme = preload("res://addons/couch_ui/couch_theme.gd")
 const CouchPauseOverlay = preload("res://addons/couch_ui/couch_pause_overlay.gd")
 const CouchTouchOverlay = preload("res://addons/couch_ui/couch_touch_overlay.gd")
 const CouchPlayerCard = preload("res://addons/couch_ui/couch_player_card.gd")
+const CouchMenuShell = preload("res://addons/couch_ui/couch_menu_shell.gd")
+const CouchDefaults = preload("res://addons/couch_ui/couch_defaults.gd")
 
 var state_manager: RollStateManager
 var leaderboard: LeaderboardManager
@@ -147,12 +149,17 @@ func _build_scene() -> void:
 	powerup_spawner.enabled = powerups_enabled
 	add_child(powerup_spawner)
 	
-	# 4. 4 Spieler-Kugeln
+	# 4. 4 Spieler-Kugeln mit smarten Gamepad-Auto-Defaults
+	var slot_defaults := CouchDefaults.detect_slot_modes(4)
+	var p1_ctrl: PlayerBall.ControlType = (PlayerBall.ControlType.GAMEPAD_0 + slot_defaults[0]["device"]) as PlayerBall.ControlType if slot_defaults[0]["kind"] == "gamepad" else PlayerBall.ControlType.HUMAN_KB1
+	var p2_ctrl: PlayerBall.ControlType = (PlayerBall.ControlType.GAMEPAD_0 + slot_defaults[1]["device"]) as PlayerBall.ControlType if slot_defaults[1]["kind"] == "gamepad" else PlayerBall.ControlType.AI_BOT
+	var p3_ctrl: PlayerBall.ControlType = (PlayerBall.ControlType.GAMEPAD_0 + slot_defaults[2]["device"]) as PlayerBall.ControlType if slot_defaults[2]["kind"] == "gamepad" else PlayerBall.ControlType.OFF
+	var p4_ctrl: PlayerBall.ControlType = (PlayerBall.ControlType.GAMEPAD_0 + slot_defaults[3]["device"]) as PlayerBall.ControlType if slot_defaults[3]["kind"] == "gamepad" else PlayerBall.ControlType.OFF
 	var p_configs = [
-		{"id": 1, "name": "Player1_Red", "color": Color(0.95, 0.25, 0.25), "pos": Vector3(-5.0, RollConfig.BALL_RADIUS + 0.1, 0.0), "ctrl": PlayerBall.ControlType.HUMAN_KB1},
-		{"id": 2, "name": "Player2_Blue", "color": Color(0.2, 0.55, 0.95), "pos": Vector3(5.0, RollConfig.BALL_RADIUS + 0.1, 0.0), "ctrl": PlayerBall.ControlType.AI_BOT},
-		{"id": 3, "name": "Player3_Yellow", "color": Color(0.95, 0.85, 0.15), "pos": Vector3(0.0, RollConfig.BALL_RADIUS + 0.1, -5.0), "ctrl": PlayerBall.ControlType.OFF},
-		{"id": 4, "name": "Player4_Green", "color": Color(0.25, 0.85, 0.35), "pos": Vector3(0.0, RollConfig.BALL_RADIUS + 0.1, 5.0), "ctrl": PlayerBall.ControlType.OFF}
+		{"id": 1, "name": "Player1_Red", "color": Color(0.95, 0.25, 0.25), "pos": Vector3(-5.0, RollConfig.BALL_RADIUS + 0.1, 0.0), "ctrl": p1_ctrl},
+		{"id": 2, "name": "Player2_Blue", "color": Color(0.2, 0.55, 0.95), "pos": Vector3(5.0, RollConfig.BALL_RADIUS + 0.1, 0.0), "ctrl": p2_ctrl},
+		{"id": 3, "name": "Player3_Yellow", "color": Color(0.95, 0.85, 0.15), "pos": Vector3(0.0, RollConfig.BALL_RADIUS + 0.1, -5.0), "ctrl": p3_ctrl},
+		{"id": 4, "name": "Player4_Green", "color": Color(0.25, 0.85, 0.35), "pos": Vector3(0.0, RollConfig.BALL_RADIUS + 0.1, 5.0), "ctrl": p4_ctrl}
 	]
 	
 	players.clear()
@@ -252,134 +259,111 @@ func _build_ui() -> void:
 	in_game_hint.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 0.75))
 	ui_hud_container.add_child(in_game_hint)
 	
-	# --- Pre-Match Lobby Panel ---
-	ui_lobby_panel = Control.new()
-	ui_lobby_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	
-	var bg_overlay = ColorRect.new()
-	bg_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg_overlay.color = Color(0.05, 0.08, 0.14, 0.88)
-	ui_lobby_panel.add_child(bg_overlay)
-	
-	var title = Label.new()
-	title.text = "ROLL & RUMBLE 3D — LOBBY"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(240, 35)
-	title.size = Vector2(800, 50)
-	title.add_theme_font_size_override("font_size", 38)
-	ui_lobby_panel.add_child(title)
-	
-	var subtitle = Label.new()
-	subtitle.text = "Slots: [1]-[4]  |  Modus: [M]  |  Power-Ups: [P]  |  Bestenliste: [L]  |  Arena: [T]/[A]  |  Start: [SPACE]"
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.position = Vector2(100, 95)
-	subtitle.size = Vector2(1080, 30)
-	subtitle.add_theme_font_size_override("font_size", 19)
-	subtitle.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
-	ui_lobby_panel.add_child(subtitle)
-	
+	# --- Pre-Match Hauptmenü (ClanBomber-Stil via CouchMenuShell) ---
+	var shell := CouchMenuShell.new("ROLL & RUMBLE 3D", "3D Physics Bumper Sumo Party")
+	shell.start_requested.connect(start_match_from_lobby)
+	shell.master_volume_changed.connect(func(v: float) -> void:
+		if sound_manager:
+			sound_manager.set_master_volume(v)
+	)
+	shell.music_volume_changed.connect(func(v: float) -> void:
+		if sound_manager:
+			sound_manager.set_music_volume(v)
+	)
+	shell.sfx_volume_changed.connect(func(v: float) -> void:
+		if sound_manager:
+			sound_manager.set_sfx_volume(v)
+	)
+	shell.touch_toggled.connect(func() -> void:
+		if ui_touch_overlay:
+			ui_touch_overlay.toggle_touch_overlay()
+	)
+	ui_lobby_panel = shell
+
+	# Subpage: PLAYERS
 	ui_slot_labels.clear()
 	ui_slot_btns.clear()
-	var col_width = 260
-	var start_x = 80
+	var cards_row := HBoxContainer.new()
+	cards_row.add_theme_constant_override("separation", 16)
+	cards_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	cards_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	shell.players_box.add_child(cards_row)
 	for i in range(4):
 		var card := CouchPlayerCard.new(i, p_colors[i], false)
-		card.position = Vector2(start_x + i * (col_width + 20), 145)
-		card.size = Vector2(col_width, 340)
+		card.custom_minimum_size = Vector2(205, 290)
 		card.control_cycled.connect(cycle_player_slot)
-		ui_lobby_panel.add_child(card)
+		cards_row.add_child(card)
 		card.set_title(p_names[i], p_colors[i])
 		ui_slot_labels.append(card.status_label)
 		card.ctrl_btn.text = "STEUERUNG"
 		ui_slot_btns.append(card.ctrl_btn)
-	
-	# Kompakte Optionsleiste: Match-Modus, Power-Ups, Bestenliste (y=500, H=50)
-	ui_options_card = Panel.new()
-	ui_options_card.position = Vector2(80, 500)
-	ui_options_card.size = Vector2(1100, 50)
-	ui_lobby_panel.add_child(ui_options_card)
-	
-	# Match / Tournament Mode Button
-	ui_mode_label = Label.new()
-	ui_mode_label.position = Vector2(15, 10)
-	ui_mode_label.size = Vector2(250, 30)
-	ui_mode_label.add_theme_font_size_override("font_size", 15)
-	ui_options_card.add_child(ui_mode_label)
-	
-	ui_mode_toggle_btn = Button.new()
-	ui_mode_toggle_btn.position = Vector2(265, 7)
-	ui_mode_toggle_btn.size = Vector2(150, 36)
-	ui_mode_toggle_btn.text = "MODUS"
-	ui_mode_toggle_btn.add_theme_font_size_override("font_size", 14)
-	ui_mode_toggle_btn.pressed.connect(cycle_match_mode)
-	ui_options_card.add_child(ui_mode_toggle_btn)
-	
-	# Power-Ups Toggle Button
-	ui_powerup_label = Label.new()
-	ui_powerup_label.position = Vector2(430, 10)
-	ui_powerup_label.size = Vector2(250, 30)
-	ui_powerup_label.add_theme_font_size_override("font_size", 15)
-	ui_options_card.add_child(ui_powerup_label)
-	
-	ui_powerup_toggle_btn = Button.new()
-	ui_powerup_toggle_btn.position = Vector2(685, 7)
-	ui_powerup_toggle_btn.size = Vector2(170, 36)
-	ui_powerup_toggle_btn.add_theme_font_size_override("font_size", 14)
-	ui_powerup_toggle_btn.pressed.connect(toggle_powerups)
-	ui_options_card.add_child(ui_powerup_toggle_btn)
-	
-	# Bestenliste Modal Button
-	ui_leaderboard_btn = Button.new()
-	ui_leaderboard_btn.position = Vector2(870, 7)
-	ui_leaderboard_btn.size = Vector2(215, 36)
-	ui_leaderboard_btn.text = "🏆 BESTENLISTE"
-	ui_leaderboard_btn.add_theme_font_size_override("font_size", 14)
-	ui_leaderboard_btn.pressed.connect(toggle_leaderboard)
-	ui_options_card.add_child(ui_leaderboard_btn)
-	
-	# Arena Selection Card in Lobby (y=560, H=95)
-	ui_arena_card = Panel.new()
-	ui_arena_card.position = Vector2(80, 560)
-	ui_arena_card.size = Vector2(1100, 95)
-	ui_lobby_panel.add_child(ui_arena_card)
-	
+
+	var detect_btn := Button.new()
+	detect_btn.text = "🎮 CONTROLLER ERKENNEN"
+	detect_btn.custom_minimum_size = Vector2(320, 42)
+	detect_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	detect_btn.pressed.connect(_apply_auto_defaults)
+	shell.players_box.add_child(detect_btn)
+
+	# Subpage: ARENA
 	ui_arena_title_label = Label.new()
-	ui_arena_title_label.position = Vector2(20, 10)
-	ui_arena_title_label.size = Vector2(640, 32)
-	ui_arena_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	ui_arena_title_label.add_theme_font_size_override("font_size", 22)
+	ui_arena_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_arena_title_label.add_theme_font_size_override("font_size", 26)
 	ui_arena_title_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
-	ui_arena_card.add_child(ui_arena_title_label)
-	
+	shell.arena_box.add_child(ui_arena_title_label)
+
 	ui_arena_desc_label = Label.new()
-	ui_arena_desc_label.position = Vector2(20, 48)
-	ui_arena_desc_label.size = Vector2(640, 38)
-	ui_arena_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	ui_arena_desc_label.add_theme_font_size_override("font_size", 15)
+	ui_arena_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_arena_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	ui_arena_desc_label.add_theme_font_size_override("font_size", 17)
 	ui_arena_desc_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
-	ui_arena_card.add_child(ui_arena_desc_label)
+	shell.arena_box.add_child(ui_arena_desc_label)
 
 	ui_arena_btn = Button.new()
 	ui_arena_btn.text = "ARENA WECHSELN"
-	ui_arena_btn.position = Vector2(675, 22)
-	ui_arena_btn.size = Vector2(195, 50)
-	ui_arena_btn.focus_mode = Control.FOCUS_ALL
+	ui_arena_btn.custom_minimum_size = Vector2(320, 48)
+	ui_arena_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	ui_arena_btn.pressed.connect(cycle_arena)
-	ui_arena_card.add_child(ui_arena_btn)
+	shell.arena_box.add_child(ui_arena_btn)
+	shell.wire_subpage_focus(CouchMenuShell.Page.ARENA, [ui_arena_btn])
 
-	ui_lobby_start_btn = Button.new()
-	ui_lobby_start_btn.text = "▶ START"
-	ui_lobby_start_btn.position = Vector2(885, 22)
-	ui_lobby_start_btn.size = Vector2(195, 50)
-	ui_lobby_start_btn.focus_mode = Control.FOCUS_ALL
-	ui_lobby_start_btn.pressed.connect(start_match_from_lobby)
-	ui_arena_card.add_child(ui_lobby_start_btn)
+	# Subpage: MATCH & REGELN
+	ui_mode_label = Label.new()
+	ui_mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_mode_label.add_theme_font_size_override("font_size", 20)
+	shell.match_box.add_child(ui_mode_label)
 
-	ui_lobby_panel.theme = CouchTheme.build()
+	ui_mode_toggle_btn = Button.new()
+	ui_mode_toggle_btn.text = "MODUS WECHSELN"
+	ui_mode_toggle_btn.custom_minimum_size = Vector2(320, 46)
+	ui_mode_toggle_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ui_mode_toggle_btn.pressed.connect(cycle_match_mode)
+	shell.match_box.add_child(ui_mode_toggle_btn)
+
+	ui_powerup_label = Label.new()
+	ui_powerup_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_powerup_label.add_theme_font_size_override("font_size", 20)
+	shell.match_box.add_child(ui_powerup_label)
+
+	ui_powerup_toggle_btn = Button.new()
+	ui_powerup_toggle_btn.custom_minimum_size = Vector2(320, 46)
+	ui_powerup_toggle_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ui_powerup_toggle_btn.pressed.connect(toggle_powerups)
+	shell.match_box.add_child(ui_powerup_toggle_btn)
+	shell.wire_subpage_focus(CouchMenuShell.Page.MATCH, [ui_mode_toggle_btn, ui_powerup_toggle_btn])
+
+	# Subpage: EXTRA (Bestenliste)
+	shell.enable_extra_page("🏆 BESTENLISTE")
+	ui_leaderboard_btn = Button.new()
+	ui_leaderboard_btn.text = "EWIGE BESTENLISTE ÖFFNEN"
+	ui_leaderboard_btn.custom_minimum_size = Vector2(340, 48)
+	ui_leaderboard_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ui_leaderboard_btn.pressed.connect(func() -> void: toggle_leaderboard(true))
+	shell.extra_box.add_child(ui_leaderboard_btn)
+	shell.wire_subpage_focus(CouchMenuShell.Page.EXTRA, [ui_leaderboard_btn])
+
 	canvas.add_child(ui_lobby_panel)
 	call_deferred("_setup_lobby_focus")
-	if is_instance_valid(ui_lobby_start_btn):
-		ui_lobby_start_btn.call_deferred("grab_focus")
 
 	ui_pause_overlay = CouchPauseOverlay.new()
 	ui_pause_overlay.restarted.connect(func() -> void:
@@ -465,9 +449,12 @@ func _build_ui() -> void:
 	add_child(canvas)
 	
 	_update_lobby_ui()
+	_update_menu_summary()
 	_update_arena_ui()
+	_update_menu_summary()
 	_update_powerup_ui()
 	_update_mode_ui()
+	_update_menu_summary()
 
 func _update_lobby_ui() -> void:
 	for i in range(players.size()):
@@ -507,6 +494,7 @@ func cycle_player_slot(index: int) -> void:
 	var next_idx = (cur_idx + 1) % SLOT_CONTROL_OPTIONS.size()
 	p.set_control_type(SLOT_CONTROL_OPTIONS[next_idx])
 	_update_lobby_ui()
+	_update_menu_summary()
 
 func toggle_p2_bot() -> void:
 	if player2:
@@ -515,32 +503,50 @@ func toggle_p2_bot() -> void:
 		else:
 			player2.set_control_type(PlayerBall.ControlType.AI_BOT)
 		_update_lobby_ui()
+	_update_menu_summary()
+
+func _apply_auto_defaults() -> void:
+	var slot_defaults := CouchDefaults.detect_slot_modes(4)
+	for i in range(4):
+		if slot_defaults[i]["kind"] == "gamepad":
+			players[i].set_control_type((PlayerBall.ControlType.GAMEPAD_0 + slot_defaults[i]["device"]) as PlayerBall.ControlType)
+		elif i == 0:
+			players[i].set_control_type(PlayerBall.ControlType.HUMAN_KB1)
+		elif i == 1:
+			players[i].set_control_type(PlayerBall.ControlType.AI_BOT)
+		else:
+			players[i].set_control_type(PlayerBall.ControlType.OFF)
+	_update_lobby_ui()
+	_update_menu_summary()
 
 func _setup_lobby_focus() -> void:
+	if not (ui_lobby_panel is CouchMenuShell):
+		return
+	var shell := ui_lobby_panel as CouchMenuShell
 	CouchNav.wire_row_focus(ui_slot_btns, true)
-	var opt_row := [ui_mode_toggle_btn, ui_powerup_toggle_btn, ui_leaderboard_btn]
-	CouchNav.wire_row_focus(opt_row, true)
-	var bottom_row := [ui_arena_btn, ui_lobby_start_btn]
-	CouchNav.wire_row_focus(bottom_row, true)
+	var back_p := shell.get_back_button(CouchMenuShell.Page.PLAYERS)
+	for sb in ui_slot_btns:
+		if is_instance_valid(back_p):
+			sb.focus_neighbor_bottom = sb.get_path_to(back_p)
+			sb.focus_neighbor_top = sb.get_path_to(back_p)
+	if is_instance_valid(back_p) and not ui_slot_btns.is_empty():
+		back_p.focus_neighbor_top = back_p.get_path_to(ui_slot_btns[0])
+		back_p.focus_neighbor_bottom = back_p.get_path_to(ui_slot_btns[0])
+	_update_menu_summary()
 
-	for i in range(ui_slot_btns.size()):
-		var sb := ui_slot_btns[i]
-		var target_opt: Control = ui_mode_toggle_btn if i == 0 else (ui_powerup_toggle_btn if i <= 2 else ui_leaderboard_btn)
-		var target_bot: Control = ui_arena_btn if i < 2 else ui_lobby_start_btn
-		sb.focus_neighbor_bottom = sb.get_path_to(target_opt)
-		sb.focus_neighbor_top = sb.get_path_to(target_bot)
-
-	ui_mode_toggle_btn.focus_neighbor_top = ui_mode_toggle_btn.get_path_to(ui_slot_btns[0])
-	ui_mode_toggle_btn.focus_neighbor_bottom = ui_mode_toggle_btn.get_path_to(ui_arena_btn)
-	ui_powerup_toggle_btn.focus_neighbor_top = ui_powerup_toggle_btn.get_path_to(ui_slot_btns[1])
-	ui_powerup_toggle_btn.focus_neighbor_bottom = ui_powerup_toggle_btn.get_path_to(ui_arena_btn)
-	ui_leaderboard_btn.focus_neighbor_top = ui_leaderboard_btn.get_path_to(ui_slot_btns[3])
-	ui_leaderboard_btn.focus_neighbor_bottom = ui_leaderboard_btn.get_path_to(ui_lobby_start_btn)
-
-	ui_arena_btn.focus_neighbor_top = ui_arena_btn.get_path_to(ui_powerup_toggle_btn)
-	ui_arena_btn.focus_neighbor_bottom = ui_arena_btn.get_path_to(ui_slot_btns[0])
-	ui_lobby_start_btn.focus_neighbor_top = ui_lobby_start_btn.get_path_to(ui_leaderboard_btn)
-	ui_lobby_start_btn.focus_neighbor_bottom = ui_lobby_start_btn.get_path_to(ui_slot_btns[3])
+func _update_menu_summary() -> void:
+	if not (ui_lobby_panel is CouchMenuShell):
+		return
+	var humans := 0
+	var bots := 0
+	for p in players:
+		if p.control_type == PlayerBall.ControlType.AI_BOT:
+			bots += 1
+		elif p.control_type != PlayerBall.ControlType.OFF:
+			humans += 1
+	var arena_txt := current_arena.arena_name if current_arena else "Arena"
+	var mode_txt := state_manager.get_mode_name() if state_manager else "Einzelmatch"
+	(ui_lobby_panel as CouchMenuShell).set_summary("%d Mensch(en) + %d KI-Bot(s)   •   %s   •   %s" % [humans, bots, arena_txt, mode_txt])
 
 func _unhandled_input(event: InputEvent) -> void:
 	if ui_pause_overlay and ui_pause_overlay.visible:
@@ -598,10 +604,12 @@ func cycle_arena() -> void:
 	selected_arena_type = ((int(selected_arena_type) + 1) % total_types) as BaseArena.ArenaType
 	_load_arena(selected_arena_type)
 	_update_arena_ui()
+	_update_menu_summary()
 
 func cycle_match_mode() -> void:
 	state_manager.cycle_match_mode()
 	_update_mode_ui()
+	_update_menu_summary()
 
 func _update_mode_ui() -> void:
 	if not ui_mode_label:
@@ -704,10 +712,14 @@ func return_to_lobby() -> void:
 	state_manager.enter_lobby(_get_active_player_ids())
 	ui_lobby_panel.visible = true
 	_update_lobby_ui()
+	_update_menu_summary()
 	_update_arena_ui()
+	_update_menu_summary()
 	_update_mode_ui()
-	if is_instance_valid(ui_lobby_start_btn):
-		ui_lobby_start_btn.call_deferred("grab_focus")
+	_update_menu_summary()
+	if ui_lobby_panel is CouchMenuShell:
+		(ui_lobby_panel as CouchMenuShell).show_page(CouchMenuShell.Page.MAIN)
+	_update_menu_summary()
 
 func restart_game() -> void:
 	_clear_trophy()
