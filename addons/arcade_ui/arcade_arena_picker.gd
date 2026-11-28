@@ -18,7 +18,6 @@ var _active_filter: String = "ALLE"
 var _selected_id: String = ""
 var _accent_color: Color = Color(1.0, 0.78, 0.2)
 
-var _filter_row: HFlowContainer
 var _split_box: BoxContainer
 var _list_scroll: ScrollContainer
 var _list_box: VBoxContainer
@@ -30,7 +29,12 @@ var _preview_pool: Label
 var _toggle_btn: Button
 var _action_row: HFlowContainer
 
-var _filter_btns: Array[Button] = []
+var _filter_layer: CanvasLayer
+var _filter_list: VBoxContainer
+var _filter_modal_btns: Array[Button] = []
+var _filter_close_btn: Button
+var _filter_btn: Button
+
 var _item_btns: Array[Button] = []
 var _action_btns: Array[Button] = []
 var _extra_btn_map: Dictionary = {}
@@ -42,15 +46,12 @@ func _init() -> void:
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_theme_constant_override("separation", 8)
 
-	_filter_row = HFlowContainer.new()
-	_filter_row.add_theme_constant_override("h_separation", 6)
-	_filter_row.add_theme_constant_override("v_separation", 6)
-	add_child(_filter_row)
-
 	_action_row = HFlowContainer.new()
 	_action_row.add_theme_constant_override("h_separation", 8)
 	_action_row.add_theme_constant_override("v_separation", 6)
 	add_child(_action_row)
+
+	_build_filter_modal()
 
 	_split_box = BoxContainer.new()
 	_split_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -232,11 +233,96 @@ func set_back_control(ctrl: Control) -> void:
 	_back_control = ctrl
 	_wire_focus()
 
+func _build_filter_modal() -> void:
+	_filter_layer = CanvasLayer.new()
+	_filter_layer.layer = 90
+	_filter_layer.visible = false
+	add_child(_filter_layer)
+
+	var bg := ColorRect.new()
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.03, 0.04, 0.08, 0.78)
+	_filter_layer.add_child(bg)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_filter_layer.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(360, 0)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.11, 0.18, 0.98)
+	sb.border_color = _accent_color
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(12)
+	sb.set_content_margin_all(16)
+	panel.add_theme_stylebox_override("panel", sb)
+	center.add_child(panel)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	panel.add_child(vb)
+
+	var hdr := Label.new()
+	hdr.text = "FILTER WÄHLEN"
+	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hdr.add_theme_font_size_override("font_size", 18)
+	hdr.add_theme_color_override("font_color", _accent_color)
+	vb.add_child(hdr)
+
+	var sc := ScrollContainer.new()
+	sc.follow_focus = true
+	sc.custom_minimum_size = Vector2(320, 260)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(sc)
+
+	_filter_list = VBoxContainer.new()
+	_filter_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_filter_list.add_theme_constant_override("separation", 6)
+	sc.add_child(_filter_list)
+
+	_filter_close_btn = Button.new()
+	_filter_close_btn.text = "SCHLIESSEN"
+	_filter_close_btn.custom_minimum_size = Vector2(200, 38)
+	_filter_close_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_filter_close_btn.focus_mode = Control.FOCUS_ALL
+	_filter_close_btn.pressed.connect(close_filter_menu)
+	vb.add_child(_filter_close_btn)
+
+func is_filter_menu_open() -> bool:
+	return is_instance_valid(_filter_layer) and _filter_layer.visible
+
+func open_filter_menu() -> void:
+	_rebuild_filter_modal()
+	_filter_layer.visible = true
+	var target: Control = _filter_close_btn
+	for b in _filter_modal_btns:
+		if str(b.get_meta("filter_tag", "")) == _active_filter:
+			target = b
+			break
+	if is_instance_valid(target):
+		target.grab_focus()
+
+func close_filter_menu() -> void:
+	if is_instance_valid(_filter_layer):
+		_filter_layer.visible = false
+	if is_instance_valid(_filter_btn) and _filter_btn.is_inside_tree():
+		_filter_btn.grab_focus()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if is_filter_menu_open() and event.is_action_pressed("ui_cancel"):
+		close_filter_menu()
+		var vp := get_viewport()
+		if vp:
+			vp.set_input_as_handled()
+
+func _filter_button_label() -> String:
+	var count := get_filtered_arenas().size()
+	return "FILTER: %s (%d)" % [_active_filter.to_upper(), count]
+
 func get_primary_focus_control() -> Control:
 	if not _item_btns.is_empty() and is_instance_valid(_item_btns[0]):
 		return _item_btns[0]
-	if not _filter_btns.is_empty() and is_instance_valid(_filter_btns[0]):
-		return _filter_btns[0]
 	if not _action_btns.is_empty() and is_instance_valid(_action_btns[0]):
 		return _action_btns[0]
 	return _back_control
@@ -269,9 +355,6 @@ func _capture_focus_state() -> Dictionary:
 	var item_idx := _item_btns.find(owner)
 	if item_idx >= 0:
 		return {"kind": "item", "idx": item_idx, "id": str(owner.get_meta("arena_id", _selected_id))}
-	var filter_idx := _filter_btns.find(owner)
-	if filter_idx >= 0:
-		return {"kind": "filter", "idx": filter_idx, "tag": str(owner.get_meta("filter_tag", _active_filter))}
 	var action_idx := _action_btns.find(owner)
 	if action_idx >= 0:
 		return {"kind": "action", "idx": action_idx}
@@ -298,14 +381,6 @@ func _restore_focus_state(state: Dictionary) -> void:
 			target = _toggle_btn
 		else:
 			target = get_primary_focus_control()
-	elif kind == "filter":
-		var wanted_tag := str(state.get("tag", _active_filter))
-		for b in _filter_btns:
-			if str(b.get_meta("filter_tag", "")) == wanted_tag:
-				target = b
-				break
-		if target == null and not _filter_btns.is_empty():
-			target = _filter_btns[clampi(int(state.get("idx", 0)), 0, _filter_btns.size() - 1)]
 	elif kind == "action":
 		if not _action_btns.is_empty():
 			target = _action_btns[clampi(int(state.get("idx", 0)), 0, _action_btns.size() - 1)]
@@ -321,7 +396,6 @@ func _clear_children(parent: Node) -> void:
 
 func _rebuild_all() -> void:
 	var focus_state := _capture_focus_state()
-	_rebuild_filters()
 	_rebuild_list()
 	_rebuild_actions()
 	_refresh_preview()
@@ -329,9 +403,9 @@ func _rebuild_all() -> void:
 	_restore_focus_state(focus_state)
 	focus_layout_changed.emit()
 
-func _rebuild_filters() -> void:
-	_filter_btns.clear()
-	_clear_children(_filter_row)
+func _rebuild_filter_modal() -> void:
+	_filter_modal_btns.clear()
+	_clear_children(_filter_list)
 
 	var tags: Array[String] = ["ALLE", "AKTIV"]
 	for a in _arenas:
@@ -344,21 +418,32 @@ func _rebuild_filters() -> void:
 	for tag in tags:
 		var btn := Button.new()
 		btn.focus_mode = Control.FOCUS_ALL
-		btn.custom_minimum_size = Vector2(0, 30)
-		btn.add_theme_font_size_override("font_size", 13)
+		btn.custom_minimum_size = Vector2(0, 36)
+		btn.add_theme_font_size_override("font_size", 14)
 		if tag == "ALLE":
 			btn.text = "ALLE (%d)" % _arenas.size()
 		elif tag == "AKTIV":
 			btn.text = "AKTIV (%d)" % enabled_count
 		else:
-			btn.text = tag.to_upper()
+			var cnt := 0
+			for a in _arenas:
+				if (a.get("tags", []) as Array).has(tag):
+					cnt += 1
+			btn.text = "%s (%d)" % [tag.to_upper(), cnt]
 		if tag == _active_filter:
 			btn.add_theme_color_override("font_color", _accent_color)
 		var t_copy := tag
 		btn.set_meta("filter_tag", t_copy)
-		btn.pressed.connect(func() -> void: set_filter(t_copy))
-		_filter_row.add_child(btn)
-		_filter_btns.append(btn)
+		btn.pressed.connect(func() -> void:
+			set_filter(t_copy)
+			close_filter_menu()
+		)
+		_filter_list.add_child(btn)
+		_filter_modal_btns.append(btn)
+
+	var modal_ctrls: Array = _filter_modal_btns.duplicate()
+	modal_ctrls.append(_filter_close_btn)
+	ArcadeNav.wire_vertical_focus(modal_ctrls, true)
 
 func _rebuild_list() -> void:
 	_item_btns.clear()
@@ -405,14 +490,19 @@ func _rebuild_actions() -> void:
 	_extra_btn_map.clear()
 	_clear_children(_action_row)
 
-	var select_only_cb := func() -> void:
-		if _selected_id != "":
-			select_only(_selected_id)
+	_filter_btn = Button.new()
+	_filter_btn.text = _filter_button_label()
+	_filter_btn.focus_mode = Control.FOCUS_ALL
+	_filter_btn.custom_minimum_size = Vector2(0, 34)
+	_filter_btn.add_theme_font_size_override("font_size", 13)
+	_filter_btn.add_theme_color_override("font_color", _accent_color)
+	_filter_btn.pressed.connect(open_filter_menu)
+	_action_row.add_child(_filter_btn)
+	_action_btns.append(_filter_btn)
+
 	var specs := [
-		{"label": "FILTER AN", "cb": func() -> void: set_filtered_enabled(true)},
-		{"label": "FILTER AUS", "cb": func() -> void: set_filtered_enabled(false)},
-		{"label": "NUR DIESE", "cb": select_only_cb},
-		{"label": "ALLE AN", "cb": enable_all},
+		{"label": "AN", "cb": func() -> void: set_filtered_enabled(true)},
+		{"label": "AUS", "cb": func() -> void: set_filtered_enabled(false)},
 	]
 	for spec in specs:
 		var b := Button.new()
@@ -461,25 +551,14 @@ func _refresh_preview() -> void:
 	_toggle_btn.text = "IM POOL: AN" if on else "IM POOL: AUS"
 
 func _wire_focus() -> void:
-	ArcadeNav.wire_row_focus(_filter_btns, true)
 	ArcadeNav.wire_row_focus(_action_btns, true)
 	ArcadeNav.wire_vertical_focus(_item_btns, false)
 
-	# Oben -> Unten: _filter_btns -> _action_btns -> _item_btns -> _back_control
-	if not _filter_btns.is_empty() and not _action_btns.is_empty():
-		for fb in _filter_btns:
-			fb.focus_neighbor_bottom = fb.get_path_to(_action_btns[0])
-		for ab in _action_btns:
-			ab.focus_neighbor_top = ab.get_path_to(_filter_btns[0])
-
+	# Oben -> Unten: _action_btns -> _item_btns -> _back_control
 	if not _action_btns.is_empty() and not _item_btns.is_empty():
 		for ab in _action_btns:
 			ab.focus_neighbor_bottom = ab.get_path_to(_item_btns[0])
 		_item_btns[0].focus_neighbor_top = _item_btns[0].get_path_to(_action_btns[0])
-	elif not _filter_btns.is_empty() and not _item_btns.is_empty():
-		for fb in _filter_btns:
-			fb.focus_neighbor_bottom = fb.get_path_to(_item_btns[0])
-		_item_btns[0].focus_neighbor_top = _item_btns[0].get_path_to(_filter_btns[0])
 
 	if is_instance_valid(_toggle_btn) and _toggle_btn.visible:
 		var selected_btn: Button = _item_btns[0] if not _item_btns.is_empty() else null
@@ -491,8 +570,6 @@ func _wire_focus() -> void:
 			_toggle_btn.focus_neighbor_left = _toggle_btn.get_path_to(selected_btn)
 		if not _action_btns.is_empty():
 			_toggle_btn.focus_neighbor_top = _toggle_btn.get_path_to(_action_btns[0])
-		elif not _filter_btns.is_empty():
-			_toggle_btn.focus_neighbor_top = _toggle_btn.get_path_to(_filter_btns[0])
 		if is_instance_valid(_back_control):
 			_toggle_btn.focus_neighbor_bottom = _toggle_btn.get_path_to(_back_control)
 
@@ -505,8 +582,7 @@ func _wire_focus() -> void:
 			for ab in _action_btns:
 				ab.focus_neighbor_bottom = ab.get_path_to(_back_control)
 			_back_control.focus_neighbor_top = _back_control.get_path_to(_action_btns[0])
-		var top_entry: Control = _filter_btns[0] if not _filter_btns.is_empty() else (_action_btns[0] if not _action_btns.is_empty() else null)
-		if top_entry != null:
-			_back_control.focus_neighbor_bottom = _back_control.get_path_to(top_entry)
-		for fb in _filter_btns:
-			fb.focus_neighbor_top = fb.get_path_to(_back_control)
+		if not _action_btns.is_empty():
+			_back_control.focus_neighbor_bottom = _back_control.get_path_to(_action_btns[0])
+			for ab in _action_btns:
+				ab.focus_neighbor_top = ab.get_path_to(_back_control)
