@@ -6,6 +6,9 @@ const ArcadeNav = preload("res://addons/arcade_ui/arcade_nav.gd")
 const ArcadeDefaults = preload("res://addons/arcade_ui/arcade_defaults.gd")
 const ArcadeAudio = preload("res://addons/arcade_ui/arcade_audio.gd")
 
+const BRANDING_LOGO_PATH := "res://addons/arcade_ui/assets/branding/hshl_logo.png"
+const SETTINGS_CFG_PATH := "user://arcade_ui_settings.cfg"
+
 ## Einheitliche Hauptmenü- & Untermenü-Shell im ClanBomber-Stil für Couch-Multiplayer-Spiele.
 ## Bietet MAIN + Untermenüs (PLAYERS, ARENA, MATCH, SETTINGS, EXTRA) mit Gamepad-Focus & Touch-Support.
 
@@ -52,6 +55,9 @@ var _music_slider: HSlider
 var _sfx_slider: HSlider
 var _fs_btn: Button
 var _touch_btn: Button
+var _branding_btn: Button
+var _branding_badge: PanelContainer
+var branding_enabled: bool = true
 var _back_btns: Dictionary = {}
 var _page_first_focus: Dictionary = {}
 
@@ -194,6 +200,8 @@ void fragment() {
 	_footer_lbl.add_theme_color_override("font_color", Color(0.58, 0.68, 0.85, 0.92))
 	root_vbox.add_child(_footer_lbl)
 
+	_build_branding_badge()
+	_load_branding_setting()
 	_build_default_settings()
 	show_page(Page.MAIN)
 
@@ -277,7 +285,14 @@ func _build_default_settings() -> void:
 	_touch_btn.pressed.connect(func() -> void: touch_toggled.emit())
 	settings_box.add_child(_touch_btn)
 
-	wire_subpage_focus(Page.SETTINGS, [_master_slider, _music_slider, _sfx_slider, _fs_btn, _touch_btn])
+	_branding_btn = Button.new()
+	_branding_btn.custom_minimum_size = Vector2(360, 44)
+	_branding_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_branding_btn.text = "HSHL-Branding: AN" if branding_enabled else "HSHL-Branding: AUS"
+	_branding_btn.pressed.connect(func() -> void: set_branding_enabled(not branding_enabled, true))
+	settings_box.add_child(_branding_btn)
+
+	wire_subpage_focus(Page.SETTINGS, [_master_slider, _music_slider, _sfx_slider, _fs_btn, _touch_btn, _branding_btn])
 
 func _make_slider_row(parent: VBoxContainer, label_text: String, initial: float, cb: Callable) -> HSlider:
 	var row_box := PanelContainer.new()
@@ -327,6 +342,59 @@ func _make_slider_row(parent: VBoxContainer, label_text: String, initial: float,
 	)
 	row.add_child(slider)
 	return slider
+
+func _build_branding_badge() -> void:
+	if not ResourceLoader.exists(BRANDING_LOGO_PATH):
+		return
+	var tex := load(BRANDING_LOGO_PATH) as Texture2D
+	if tex == null:
+		return
+	_branding_badge = PanelContainer.new()
+	_branding_badge.name = "BrandingBadge"
+	_branding_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_branding_badge.anchor_left = 1.0
+	_branding_badge.anchor_right = 1.0
+	_branding_badge.anchor_top = 0.0
+	_branding_badge.anchor_bottom = 0.0
+	_branding_badge.offset_left = -228
+	_branding_badge.offset_right = -18
+	_branding_badge.offset_top = 18
+	_branding_badge.offset_bottom = 90
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(1.0, 1.0, 1.0, 0.96)
+	sb.border_color = Color(0.85, 0.88, 0.94, 0.9)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(8)
+	sb.set_content_margin_all(4)
+	sb.shadow_color = Color(0.0, 0.0, 0.0, 0.35)
+	sb.shadow_size = 8
+	_branding_badge.add_theme_stylebox_override("panel", sb)
+	add_child(_branding_badge)
+
+	var logo := TextureRect.new()
+	logo.texture = tex
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_branding_badge.add_child(logo)
+
+func _load_branding_setting() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SETTINGS_CFG_PATH) == OK:
+		branding_enabled = bool(cfg.get_value("ui", "branding_enabled", true))
+	set_branding_enabled(branding_enabled, false)
+
+func set_branding_enabled(enabled: bool, persist: bool = true) -> void:
+	branding_enabled = enabled
+	if _branding_badge:
+		_branding_badge.visible = branding_enabled
+	if _branding_btn:
+		_branding_btn.text = "HSHL-Branding: AN" if branding_enabled else "HSHL-Branding: AUS"
+	if persist:
+		var cfg := ConfigFile.new()
+		cfg.load(SETTINGS_CFG_PATH)
+		cfg.set_value("ui", "branding_enabled", branding_enabled)
+		cfg.save(SETTINGS_CFG_PATH)
 
 func _set_bus_linear(bus_name: StringName, linear: float) -> void:
 	var idx := AudioServer.get_bus_index(bus_name)
