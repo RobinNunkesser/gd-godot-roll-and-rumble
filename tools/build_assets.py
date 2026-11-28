@@ -13,94 +13,33 @@ import os
 import shutil
 import struct
 import subprocess
-import wave
+import sys
 from pathlib import Path
-import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 TEX_DIR = ROOT / "assets" / "textures"
 MUSIC_DIR = ROOT / "assets" / "audio" / "music"
 MUSIC_DIR.mkdir(parents=True, exist_ok=True)
 
+_PKG_ROOT = ROOT.parents[4] / "packages" / "godot" / "godot_asset_pipeline"
+if _PKG_ROOT.is_dir() and str(_PKG_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PKG_ROOT))
 
-def _vlq(val: int) -> bytes:
-    out = [val & 0x7F]
-    val >>= 7
-    while val:
-        out.append((val & 0x7F) | 0x80)
-        val >>= 7
-    return bytes(reversed(out))
-
-
-def _add_note(events: list, ch: int, pitch: int, vel: int, start_tick: int, dur_tick: int) -> None:
-    events.append((start_tick, bytes([0x90 | ch, pitch, vel])))
-    events.append((start_tick + dur_tick, bytes([0x80 | ch, pitch, 0])))
+from godot_asset_pipeline import (
+    add_midi_note as _add_note,
+    find_soundfont,
+    generate_normal_map,
+    render_midi_loop,
+)
 
 
 def _render_midi_loop(out_name: str, bpm: int, bars_count: int, events: list, sf2: str, tpq: int = 480) -> None:
-    events.sort(key=lambda e: e[0])
-    trk_data = bytearray()
-    last_t = 0
-    for t, msg in events:
-        trk_data.extend(_vlq(t - last_t))
-        trk_data.extend(msg)
-        last_t = t
-    trk_data.extend(_vlq(0) + b"\xFF\x2F\x00")
-
-    header = b"MThd" + struct.pack(">IHHH", 6, 0, 1, tpq)
-    track = b"MTrk" + struct.pack(">I", len(trk_data)) + bytes(trk_data)
-
-    tmp_mid = MUSIC_DIR / f"_tmp_{out_name}.mid"
-    tmp_wav = MUSIC_DIR / f"_tmp_{out_name}.wav"
-    out_ogg = MUSIC_DIR / f"{out_name}.ogg"
-    tmp_mid.write_bytes(header + track)
-
-    subprocess.run(
-        ["fluidsynth", "-ni", "-R", "1", "-C", "1", "-g", "1.0", "-F", str(tmp_wav), "-r", "44100", sf2, str(tmp_mid)],
-        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-
-    data = tmp_wav.read_bytes()
-    pos, channels, sr, pcm_bytes = 12, 2, 44100, b""
-    while pos + 8 <= len(data):
-        cid = data[pos:pos + 4]
-        csz = struct.unpack("<I", data[pos + 4:pos + 8])[0]
-        chunk = data[pos + 8:pos + 8 + csz]
-        if cid == b"fmt ":
-            _, channels, sr, _, _, _ = struct.unpack("<HHIIHH", chunk[:16])
-        elif cid == b"data":
-            pcm_bytes = chunk
-        pos += 8 + csz + (csz & 1)
-
-    raw = (np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32767.0).reshape(-1, channels)
-    loop_frames = int(round(sr * bars_count * 4 * (60.0 / float(bpm))))
-    if len(raw) >= loop_frames * 2:
-        raw = raw[loop_frames:loop_frames * 2]
-    peak = float(np.max(np.abs(raw)))
-    if peak > 1e-4:
-        scaled = np.tanh((raw / peak) * 1.3) * 0.88
-        out_pcm = np.clip(scaled * 32767.0, -32767, 32767).astype(np.int16)
-        with wave.open(str(tmp_wav), "wb") as wf:
-            wf.setnchannels(channels)
-            wf.setsampwidth(2)
-            wf.setframerate(sr)
-            wf.writeframes(out_pcm.tobytes())
-
-    subprocess.run(
-        ["ffmpeg", "-y", "-i", str(tmp_wav), "-ac", "2", "-c:a", "vorbis", "-strict", "-2", "-b:a", "192k", str(out_ogg)],
-        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    tmp_mid.unlink(missing_ok=True)
-    tmp_wav.unlink(missing_ok=True)
+    out_ogg = render_midi_loop(MUSIC_DIR / f"{out_name}.ogg", bpm, bars_count, events, sf2, tpq)
     print("  -> Music:", out_ogg.name)
 
 
 def generate_music() -> None:
-    sf2_candidates = [
-        "/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls",
-        "/opt/homebrew/Cellar/fluid-synth/2.5.4/share/fluid-synth/sf2/VintageDreamsWaves-v2.sf2",
-    ]
-    sf2 = next((p for p in sf2_candidates if os.path.exists(p)), None)
+    sf2 = find_soundfont()
     if not (shutil.which("fluidsynth") and shutil.which("ffmpeg") and sf2):
         return
 
@@ -198,8 +137,6 @@ def generate_music() -> None:
 
 
 def generate_normal_maps() -> None:
-    if not shutil.which("magick"):
-        return
     targets = [
         ("wood_deck.jpg", "wood_deck_normal.png", 2.8),
         ("metal_rim.jpg", "metal_rim_normal.png", 3.2),
@@ -207,42 +144,9 @@ def generate_normal_maps() -> None:
         ("ice_slick.jpg", "ice_slick_normal.png", 2.2),
     ]
     for src_name, dst_name, strength in targets:
-        src = TEX_DIR / src_name
         dst = TEX_DIR / dst_name
-        if not src.exists():
-            continue
-        tmp_pgm = TEX_DIR / "_tmp_gray.pgm"
-        tmp_ppm = TEX_DIR / "_tmp_norm.ppm"
-        subprocess.run(["magick", str(src), "-colorspace", "Gray", "-depth", "8", str(tmp_pgm)], check=True)
-        raw = tmp_pgm.read_bytes()
-        # Parse P5 PGM header
-        idx = 0
-        tokens = []
-        while len(tokens) < 4:
-            while idx < len(raw) and chr(raw[idx]).isspace():
-                idx += 1
-            if raw[idx] == ord("#"):
-                while idx < len(raw) and raw[idx] != ord("\n"):
-                    idx += 1
-                continue
-            start = idx
-            while idx < len(raw) and not chr(raw[idx]).isspace():
-                idx += 1
-            tokens.append(raw[start:idx].decode("ascii"))
-        w, h = int(tokens[1]), int(tokens[2])
-        img = np.frombuffer(raw[idx + 1:], dtype=np.uint8).reshape((h, w)).astype(np.float32) / 255.0
-
-        dx = (np.roll(img, -1, axis=1) - np.roll(img, 1, axis=1)) * strength
-        dy = (np.roll(img, -1, axis=0) - np.roll(img, 1, axis=0)) * strength
-        nz = np.ones_like(dx)
-        norm = np.sqrt(dx * dx + dy * dy + nz * nz)
-        rgb = np.stack([(-dx / norm) * 0.5 + 0.5, (-dy / norm) * 0.5 + 0.5, (nz / norm) * 0.5 + 0.5], axis=-1)
-        out_u8 = np.clip(rgb * 255.0, 0, 255).astype(np.uint8)
-        tmp_ppm.write_bytes(f"P6\n{w} {h}\n255\n".encode("ascii") + out_u8.tobytes())
-        subprocess.run(["magick", str(tmp_ppm), str(dst)], check=True)
-        tmp_pgm.unlink(missing_ok=True)
-        tmp_ppm.unlink(missing_ok=True)
-        print("  -> Normal Map:", dst.name)
+        if generate_normal_map(TEX_DIR / src_name, dst, strength=strength):
+            print("  -> Normal Map:", dst.name)
 
 
 def generate_blender_models() -> None:
