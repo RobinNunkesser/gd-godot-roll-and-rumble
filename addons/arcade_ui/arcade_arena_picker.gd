@@ -47,6 +47,11 @@ func _init() -> void:
 	_filter_row.add_theme_constant_override("v_separation", 6)
 	add_child(_filter_row)
 
+	_action_row = HFlowContainer.new()
+	_action_row.add_theme_constant_override("h_separation", 8)
+	_action_row.add_theme_constant_override("v_separation", 6)
+	add_child(_action_row)
+
 	_split_box = BoxContainer.new()
 	_split_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_split_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -55,7 +60,7 @@ func _init() -> void:
 
 	_list_scroll = ScrollContainer.new()
 	_list_scroll.follow_focus = true
-	_list_scroll.custom_minimum_size = Vector2(320, 210)
+	_list_scroll.custom_minimum_size = Vector2(320, 180)
 	_list_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -67,7 +72,7 @@ func _init() -> void:
 	_list_scroll.add_child(_list_box)
 
 	_preview_panel = PanelContainer.new()
-	_preview_panel.custom_minimum_size = Vector2(280, 210)
+	_preview_panel.custom_minimum_size = Vector2(280, 180)
 	_preview_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_preview_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_apply_preview_style()
@@ -85,7 +90,7 @@ func _init() -> void:
 	pv.add_child(_preview_title)
 
 	_preview_tex = TextureRect.new()
-	_preview_tex.custom_minimum_size = Vector2(180, 120)
+	_preview_tex.custom_minimum_size = Vector2(160, 100)
 	_preview_tex.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_preview_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_preview_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -113,11 +118,6 @@ func _init() -> void:
 			toggle_arena(_selected_id)
 	)
 	pv.add_child(_toggle_btn)
-
-	_action_row = HFlowContainer.new()
-	_action_row.add_theme_constant_override("h_separation", 8)
-	_action_row.add_theme_constant_override("v_separation", 6)
-	add_child(_action_row)
 
 	resized.connect(_update_responsive)
 
@@ -462,22 +462,25 @@ func _refresh_preview() -> void:
 
 func _wire_focus() -> void:
 	ArcadeNav.wire_row_focus(_filter_btns, true)
-	ArcadeNav.wire_vertical_focus(_item_btns, false)
 	ArcadeNav.wire_row_focus(_action_btns, true)
-	if not _item_btns.is_empty() and not _action_btns.is_empty():
-		var last_item := _item_btns[_item_btns.size() - 1]
-		last_item.focus_neighbor_bottom = last_item.get_path_to(_action_btns[0])
-		for ab in _action_btns:
-			ab.focus_neighbor_top = ab.get_path_to(last_item)
-	elif not _filter_btns.is_empty() and not _action_btns.is_empty():
-		for ab in _action_btns:
-			ab.focus_neighbor_top = ab.get_path_to(_filter_btns[0])
+	ArcadeNav.wire_vertical_focus(_item_btns, false)
+
+	# Oben -> Unten: _filter_btns -> _action_btns -> _item_btns -> _back_control
+	if not _filter_btns.is_empty() and not _action_btns.is_empty():
 		for fb in _filter_btns:
 			fb.focus_neighbor_bottom = fb.get_path_to(_action_btns[0])
-	if not _item_btns.is_empty() and not _filter_btns.is_empty():
-		_item_btns[0].focus_neighbor_top = _item_btns[0].get_path_to(_filter_btns[0])
+		for ab in _action_btns:
+			ab.focus_neighbor_top = ab.get_path_to(_filter_btns[0])
+
+	if not _action_btns.is_empty() and not _item_btns.is_empty():
+		for ab in _action_btns:
+			ab.focus_neighbor_bottom = ab.get_path_to(_item_btns[0])
+		_item_btns[0].focus_neighbor_top = _item_btns[0].get_path_to(_action_btns[0])
+	elif not _filter_btns.is_empty() and not _item_btns.is_empty():
 		for fb in _filter_btns:
 			fb.focus_neighbor_bottom = fb.get_path_to(_item_btns[0])
+		_item_btns[0].focus_neighbor_top = _item_btns[0].get_path_to(_filter_btns[0])
+
 	if is_instance_valid(_toggle_btn) and _toggle_btn.visible:
 		var selected_btn: Button = _item_btns[0] if not _item_btns.is_empty() else null
 		for ib in _item_btns:
@@ -486,18 +489,23 @@ func _wire_focus() -> void:
 				selected_btn = ib
 		if selected_btn != null:
 			_toggle_btn.focus_neighbor_left = _toggle_btn.get_path_to(selected_btn)
-		if not _filter_btns.is_empty():
+		if not _action_btns.is_empty():
+			_toggle_btn.focus_neighbor_top = _toggle_btn.get_path_to(_action_btns[0])
+		elif not _filter_btns.is_empty():
 			_toggle_btn.focus_neighbor_top = _toggle_btn.get_path_to(_filter_btns[0])
-		if not _action_btns.is_empty():
-			_toggle_btn.focus_neighbor_bottom = _toggle_btn.get_path_to(_action_btns[0])
+		if is_instance_valid(_back_control):
+			_toggle_btn.focus_neighbor_bottom = _toggle_btn.get_path_to(_back_control)
+
 	if is_instance_valid(_back_control):
-		for ab in _action_btns:
-			ab.focus_neighbor_bottom = ab.get_path_to(_back_control)
-		if not _action_btns.is_empty():
+		if not _item_btns.is_empty():
+			var last_item := _item_btns[_item_btns.size() - 1]
+			last_item.focus_neighbor_bottom = last_item.get_path_to(_back_control)
+			_back_control.focus_neighbor_top = _back_control.get_path_to(last_item)
+		elif not _action_btns.is_empty():
+			for ab in _action_btns:
+				ab.focus_neighbor_bottom = ab.get_path_to(_back_control)
 			_back_control.focus_neighbor_top = _back_control.get_path_to(_action_btns[0])
-		elif not _item_btns.is_empty():
-			_back_control.focus_neighbor_top = _back_control.get_path_to(_item_btns[_item_btns.size() - 1])
-		var top_entry: Control = _item_btns[0] if not _item_btns.is_empty() else (_filter_btns[0] if not _filter_btns.is_empty() else null)
+		var top_entry: Control = _filter_btns[0] if not _filter_btns.is_empty() else (_action_btns[0] if not _action_btns.is_empty() else null)
 		if top_entry != null:
 			_back_control.focus_neighbor_bottom = _back_control.get_path_to(top_entry)
 		for fb in _filter_btns:
