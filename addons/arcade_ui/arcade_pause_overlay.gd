@@ -25,6 +25,7 @@ var _fs_btn: Button
 var _custom_box: VBoxContainer
 var _custom_btns: Array[Button] = []
 var _hint_lbl: Label
+var show_input_hints: bool = false
 var _title_lbl: Label
 var _accent_color: Color = Color(1.0, 0.78, 0.2)
 
@@ -138,6 +139,7 @@ func _build_ui() -> void:
 	vbox.add_child(_lobby_btn)
 
 	_hint_lbl = Label.new()
+	_hint_lbl.visible = show_input_hints
 	_hint_lbl.text = "[D-Pad / ↑↓] Wählen  |  [←→] Regler  |  [A] OK  |  [B/Esc] Weiter"
 	_hint_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint_lbl.add_theme_font_size_override("font_size", 11)
@@ -162,9 +164,14 @@ func add_custom_button(label_text: String, cb: Callable) -> Button:
 	call_deferred("refresh_focus")
 	return btn
 
+func set_input_hints_enabled(enabled: bool) -> void:
+	show_input_hints = enabled
+	if _hint_lbl:
+		_hint_lbl.visible = show_input_hints
+
 func set_touch_mode(is_touch: bool) -> void:
 	if _hint_lbl:
-		_hint_lbl.visible = not is_touch
+		_hint_lbl.visible = show_input_hints and not is_touch
 
 func refresh_focus() -> void:
 	var order: Array = [_master_slider, _music_slider, _sfx_slider, _resume_btn, _restart_btn]

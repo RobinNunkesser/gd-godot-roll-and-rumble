@@ -25,6 +25,7 @@ signal touch_toggled
 var current_page: Page = Page.MAIN
 var auto_fullscreen: bool = true
 var auto_lobby_music: bool = true
+var show_input_hints: bool = false
 var audio: ArcadeAudio
 var _focus_sfx_ready: bool = false
 
@@ -203,6 +204,7 @@ void fragment() {
 	extra_box = _make_subpage(root_vbox, Page.EXTRA, "BESTENLISTE")
 
 	_footer_lbl = Label.new()
+	_footer_lbl.visible = show_input_hints
 	_footer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_footer_lbl.add_theme_font_size_override("font_size", 13)
 	_footer_lbl.add_theme_color_override("font_color", Color(0.58, 0.68, 0.85, 0.92))
@@ -420,6 +422,11 @@ func _load_branding_setting() -> void:
 	if cfg.load(SETTINGS_CFG_PATH) == OK:
 		branding_enabled = bool(cfg.get_value("ui", "branding_enabled", true))
 	set_branding_enabled(branding_enabled, false)
+
+func set_input_hints_enabled(enabled: bool) -> void:
+	show_input_hints = enabled
+	if _footer_lbl:
+		_footer_lbl.visible = show_input_hints
 
 func set_branding_enabled(enabled: bool, persist: bool = true) -> void:
 	branding_enabled = enabled
