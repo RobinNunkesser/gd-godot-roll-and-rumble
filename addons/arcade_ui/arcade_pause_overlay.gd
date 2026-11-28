@@ -25,6 +25,8 @@ var _fs_btn: Button
 var _custom_box: VBoxContainer
 var _custom_btns: Array[Button] = []
 var _hint_lbl: Label
+var _title_lbl: Label
+var _accent_color: Color = Color(1.0, 0.78, 0.2)
 
 func _init() -> void:
 	name = "ArcadePauseOverlay"
@@ -33,7 +35,7 @@ func _init() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
 func _ready() -> void:
-	theme = ArcadeTheme.build()
+	theme = ArcadeTheme.build(_accent_color)
 	_build_ui()
 
 func _make_slider_row(parent: VBoxContainer, label_text: String, initial: float, on_change: Callable) -> HSlider:
@@ -77,12 +79,12 @@ func _build_ui() -> void:
 	vbox.add_theme_constant_override("separation", 10)
 	card.add_child(vbox)
 
-	var title := Label.new()
-	title.text = "PAUSE"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
-	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
-	vbox.add_child(title)
+	_title_lbl = Label.new()
+	_title_lbl.text = "PAUSE"
+	_title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_lbl.add_theme_font_size_override("font_size", 28)
+	_title_lbl.add_theme_color_override("font_color", _accent_color.lightened(0.1))
+	vbox.add_child(_title_lbl)
 
 	_master_slider = _make_slider_row(vbox, "Master", 1.0, func(v: float) -> void:
 		master_volume_changed.emit(v)
@@ -138,6 +140,12 @@ func _build_ui() -> void:
 	vbox.add_child(_hint_lbl)
 
 	call_deferred("refresh_focus")
+
+func set_arcade_accent(accent: Color) -> void:
+	_accent_color = accent
+	theme = ArcadeTheme.build(accent)
+	if _title_lbl:
+		_title_lbl.add_theme_color_override("font_color", accent.lightened(0.1))
 
 func add_custom_button(label_text: String, cb: Callable) -> Button:
 	var btn := Button.new()

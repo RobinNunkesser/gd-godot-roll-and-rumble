@@ -30,6 +30,9 @@ var _stick_center: Vector2 = Vector2.ZERO
 var root_control: Control
 var stick_base: Panel
 var stick_knob: Panel
+var _stick_style: StyleBoxFlat
+var _knob_style: StyleBoxFlat
+var _accent_color: Color = Color(1.0, 0.78, 0.2)
 var primary_btn: Button
 var secondary_btn: Button
 var pause_btn: Button
@@ -111,12 +114,12 @@ func _build_ui() -> void:
 	stick_base.size = stick_base.custom_minimum_size
 	stick_base.mouse_filter = Control.MOUSE_FILTER_STOP
 	stick_base.gui_input.connect(_on_stick_gui_input)
-	var base_style := StyleBoxFlat.new()
-	base_style.set_corner_radius_all(int(stick_radius))
-	base_style.bg_color = Color(0.08, 0.10, 0.16, 0.48)
-	base_style.border_color = Color(1.0, 0.78, 0.2, 0.75)
-	base_style.set_border_width_all(3)
-	stick_base.add_theme_stylebox_override("panel", base_style)
+	_stick_style = StyleBoxFlat.new()
+	_stick_style.set_corner_radius_all(int(stick_radius))
+	_stick_style.bg_color = Color(0.08, 0.10, 0.16, 0.48)
+	_stick_style.border_color = Color(_accent_color.r, _accent_color.g, _accent_color.b, 0.75)
+	_stick_style.set_border_width_all(3)
+	stick_base.add_theme_stylebox_override("panel", _stick_style)
 	root_control.add_child(stick_base)
 
 	stick_knob = Panel.new()
@@ -124,10 +127,10 @@ func _build_ui() -> void:
 	stick_knob.custom_minimum_size = Vector2(56, 56)
 	stick_knob.size = stick_knob.custom_minimum_size
 	stick_knob.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var knob_style := StyleBoxFlat.new()
-	knob_style.set_corner_radius_all(28)
-	knob_style.bg_color = Color(1.0, 0.78, 0.2, 0.85)
-	stick_knob.add_theme_stylebox_override("panel", knob_style)
+	_knob_style = StyleBoxFlat.new()
+	_knob_style.set_corner_radius_all(28)
+	_knob_style.bg_color = Color(_accent_color.r, _accent_color.g, _accent_color.b, 0.85)
+	stick_knob.add_theme_stylebox_override("panel", _knob_style)
 	stick_base.add_child(stick_knob)
 
 	primary_btn = _make_action_btn(primary_label, Color(0.95, 0.35, 0.20, 0.85), Vector2(110, 110))
@@ -174,17 +177,39 @@ func _make_action_btn(label_text: String, bg: Color, sz: Vector2) -> Button:
 	return btn
 
 func _layout_controls() -> void:
-	var vp := _get_viewport_size()
-	_stick_center = Vector2(130.0, maxf(vp.y - 130.0, 200.0))
+	_layout_controls_for_size(_get_viewport_size())
+
+func _layout_controls_for_size(vp: Vector2) -> void:
+	var margin := 16.0
+	_stick_center = Vector2(
+		maxf(stick_radius + margin, minf(130.0, vp.x * 0.24)),
+		maxf(stick_radius + margin, vp.y - maxf(130.0, vp.y * 0.20))
+	)
 	if is_instance_valid(stick_base):
 		stick_base.position = _stick_center - Vector2(stick_radius, stick_radius)
 	_center_knob()
 	if is_instance_valid(primary_btn):
-		primary_btn.position = Vector2(vp.x - 155.0, maxf(vp.y - 155.0, 180.0))
+		primary_btn.position = Vector2(
+			maxf(margin, vp.x - primary_btn.size.x - margin),
+			maxf(margin, vp.y - primary_btn.size.y - margin)
+		)
 	if is_instance_valid(secondary_btn):
-		secondary_btn.position = Vector2(vp.x - 265.0, maxf(vp.y - 125.0, 180.0))
+		var secondary_y := primary_btn.position.y + (primary_btn.size.y - secondary_btn.size.y) * 0.5
+		if vp.x < 640.0:
+			secondary_y = maxf(margin + pause_btn.size.y + 12.0, primary_btn.position.y - secondary_btn.size.y - 12.0)
+		var secondary_x := vp.x - secondary_btn.size.x - margin
+		if vp.x >= 640.0:
+			secondary_x = maxf(margin, primary_btn.position.x - secondary_btn.size.x - 16.0)
+		secondary_btn.position = Vector2(secondary_x, secondary_y)
 	if is_instance_valid(pause_btn):
-		pause_btn.position = Vector2(vp.x - 78.0, 20.0)
+		pause_btn.position = Vector2(vp.x - pause_btn.size.x - margin, margin)
+
+func set_arcade_accent(accent: Color) -> void:
+	_accent_color = accent
+	if _stick_style:
+		_stick_style.border_color = Color(accent.r, accent.g, accent.b, 0.75)
+	if _knob_style:
+		_knob_style.bg_color = Color(accent.r, accent.g, accent.b, 0.85)
 
 func _on_viewport_resized() -> void:
 	_layout_controls()

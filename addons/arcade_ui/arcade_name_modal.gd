@@ -21,6 +21,8 @@ var _line_edit: LineEdit
 var _recent_row: HBoxContainer
 var _key_btns: Array[Button] = []
 var _cancel_btn: Button
+var _title_label: Label
+var _accent_color: Color = Color(1.0, 0.78, 0.2)
 
 func _init() -> void:
 	name = "ArcadeNameModal"
@@ -48,12 +50,12 @@ func _build_ui() -> void:
 	vbox.add_theme_constant_override("separation", 10)
 	card.add_child(vbox)
 
-	var title := Label.new()
-	title.text = "SPIELERNAME EINGEBEN"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 24)
-	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
-	vbox.add_child(title)
+	_title_label = Label.new()
+	_title_label.text = "SPIELERNAME EINGEBEN"
+	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_label.add_theme_font_size_override("font_size", 24)
+	_title_label.add_theme_color_override("font_color", _accent_color.lightened(0.1))
+	vbox.add_child(_title_label)
 
 	_line_edit = LineEdit.new()
 	_line_edit.max_length = 12
@@ -96,6 +98,12 @@ func _build_ui() -> void:
 	vbox.add_child(_cancel_btn)
 
 	call_deferred("_wire_grid_focus")
+
+func set_arcade_accent(accent: Color) -> void:
+	_accent_color = accent
+	theme = ArcadeTheme.build(accent)
+	if _title_label:
+		_title_label.add_theme_color_override("font_color", accent.lightened(0.1))
 
 func _wire_grid_focus() -> void:
 	var cols := 10

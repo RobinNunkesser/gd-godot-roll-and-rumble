@@ -57,9 +57,13 @@ var _fs_btn: Button
 var _touch_btn: Button
 var _branding_btn: Button
 var _branding_badge: PanelContainer
+var _branding_logo: TextureRect
 var branding_enabled: bool = true
 var _back_btns: Dictionary = {}
 var _page_first_focus: Dictionary = {}
+var _accent_color: Color = Color(1.0, 0.78, 0.2)
+var _page_headers: Array[Label] = []
+var _slider_focus_boxes: Array[StyleBoxFlat] = []
 
 func _init(game_title: String = "COUCH GAME", subtitle_text: String = "") -> void:
 	name = "ArcadeMenuShell"
@@ -228,8 +232,9 @@ func _make_subpage(parent: VBoxContainer, page: Page, header_text: String) -> VB
 	hdr.text = header_text
 	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hdr.add_theme_font_size_override("font_size", 22)
-	hdr.add_theme_color_override("font_color", Color(0.95, 0.85, 0.45))
+	hdr.add_theme_color_override("font_color", _accent_color.lightened(0.08))
 	wrap.add_child(hdr)
+	_page_headers.append(hdr)
 
 	var content := VBoxContainer.new()
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -288,7 +293,7 @@ func _build_default_settings() -> void:
 	_branding_btn = Button.new()
 	_branding_btn.custom_minimum_size = Vector2(360, 44)
 	_branding_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_branding_btn.text = "HSHL-Branding: AN" if branding_enabled else "HSHL-Branding: AUS"
+	_branding_btn.text = "Branding: AN" if branding_enabled else "Branding: AUS"
 	_branding_btn.pressed.connect(func() -> void: set_branding_enabled(not branding_enabled, true))
 	settings_box.add_child(_branding_btn)
 
@@ -305,8 +310,9 @@ func _make_slider_row(parent: VBoxContainer, label_text: String, initial: float,
 	sb_idle.set_content_margin_all(8)
 	var sb_focus := sb_idle.duplicate()
 	sb_focus.bg_color = Color(0.17, 0.22, 0.35, 0.96)
-	sb_focus.border_color = Color(1.0, 0.78, 0.2)
+	sb_focus.border_color = _accent_color
 	sb_focus.set_border_width_all(3)
+	_slider_focus_boxes.append(sb_focus)
 	row_box.add_theme_stylebox_override("panel", sb_idle)
 	parent.add_child(row_box)
 
@@ -333,7 +339,7 @@ func _make_slider_row(parent: VBoxContainer, label_text: String, initial: float,
 	slider.focus_entered.connect(func() -> void:
 		row_box.add_theme_stylebox_override("panel", sb_focus)
 		lbl.text = "▶ " + label_text
-		lbl.add_theme_color_override("font_color", Color(1.0, 0.82, 0.28))
+		lbl.add_theme_color_override("font_color", _accent_color.lightened(0.04))
 	)
 	slider.focus_exited.connect(func() -> void:
 		row_box.add_theme_stylebox_override("panel", sb_idle)
@@ -343,10 +349,10 @@ func _make_slider_row(parent: VBoxContainer, label_text: String, initial: float,
 	row.add_child(slider)
 	return slider
 
-func _build_branding_badge() -> void:
-	if not ResourceLoader.exists(BRANDING_LOGO_PATH):
-		return
-	var tex := load(BRANDING_LOGO_PATH) as Texture2D
+func _build_branding_badge(texture_override: Texture2D = null) -> void:
+	var tex := texture_override
+	if tex == null and ResourceLoader.exists(BRANDING_LOGO_PATH):
+		tex = load(BRANDING_LOGO_PATH) as Texture2D
 	if tex == null:
 		return
 	_branding_badge = PanelContainer.new()
@@ -377,6 +383,21 @@ func _build_branding_badge() -> void:
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_branding_badge.add_child(logo)
+	_branding_logo = logo
+
+func set_branding_texture(texture: Texture2D) -> void:
+	if texture == null:
+		if _branding_logo:
+			_branding_logo.texture = null
+		if _branding_badge:
+			_branding_badge.visible = false
+		return
+	if not _branding_badge:
+		_build_branding_badge(texture)
+	if _branding_logo:
+		_branding_logo.texture = texture
+	if _branding_badge:
+		_branding_badge.visible = branding_enabled
 
 func _load_branding_setting() -> void:
 	var cfg := ConfigFile.new()
@@ -387,9 +408,9 @@ func _load_branding_setting() -> void:
 func set_branding_enabled(enabled: bool, persist: bool = true) -> void:
 	branding_enabled = enabled
 	if _branding_badge:
-		_branding_badge.visible = branding_enabled
+		_branding_badge.visible = branding_enabled and is_instance_valid(_branding_logo) and _branding_logo.texture != null
 	if _branding_btn:
-		_branding_btn.text = "HSHL-Branding: AN" if branding_enabled else "HSHL-Branding: AUS"
+		_branding_btn.text = "Branding: AN" if branding_enabled else "Branding: AUS"
 	if persist:
 		var cfg := ConfigFile.new()
 		cfg.load(SETTINGS_CFG_PATH)
@@ -471,10 +492,19 @@ func configure_profile(opts: Dictionary) -> void:
 	_refresh_main_focus()
 
 func apply_theme_preset(preset: ArcadeTheme.Preset) -> void:
-	var accent := ArcadeTheme.preset_accent(preset)
+	set_arcade_accent(ArcadeTheme.preset_accent(preset))
+
+func set_arcade_accent(accent: Color) -> void:
+	_accent_color = accent
 	theme = ArcadeTheme.build(accent)
 	if _title_lbl:
 		_title_lbl.add_theme_color_override("font_color", accent.lightened(0.18))
+	for header in _page_headers:
+		if is_instance_valid(header):
+			header.add_theme_color_override("font_color", accent.lightened(0.08))
+	for stylebox in _slider_focus_boxes:
+		if is_instance_valid(stylebox):
+			stylebox.border_color = accent
 	if _backdrop_mat:
 		_backdrop_mat.set_shader_parameter("accent_color", accent)
 

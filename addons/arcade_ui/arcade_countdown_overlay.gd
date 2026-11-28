@@ -7,6 +7,7 @@ signal countdown_finished
 
 var _label: Label
 var _running: bool = false
+var _accent_color: Color = Color(1.0, 0.85, 0.25)
 
 func _init() -> void:
 	name = "ArcadeCountdownOverlay"
@@ -23,10 +24,15 @@ func _init() -> void:
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_label.add_theme_font_size_override("font_size", 88)
-	_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25))
+	_label.add_theme_color_override("font_color", _accent_color)
 	_label.add_theme_color_override("font_outline_color", Color(0.05, 0.07, 0.12))
 	_label.add_theme_constant_override("outline_size", 10)
 	center.add_child(_label)
+
+func set_arcade_accent(accent: Color) -> void:
+	_accent_color = accent
+	if _label:
+		_label.add_theme_color_override("font_color", accent)
 
 func start(steps: Array[String] = ["3", "2", "1", "GO!"], step_duration: float = 0.65, audio = null) -> void:
 	if _running or steps.is_empty():
@@ -46,7 +52,7 @@ func _run_steps(steps: Array[String], step_duration: float, audio) -> void:
 			break
 		var is_last := (i == steps.size() - 1)
 		_label.text = steps[i]
-		_label.add_theme_color_override("font_color", Color(0.35, 1.0, 0.55) if is_last else Color(1.0, 0.85, 0.25))
+		_label.add_theme_color_override("font_color", Color(0.35, 1.0, 0.55) if is_last else _accent_color)
 		_label.pivot_offset = _label.size * 0.5
 		_label.scale = Vector2(1.45, 1.45)
 		_label.modulate.a = 1.0

@@ -14,6 +14,7 @@ var score_label: Label
 var custom_box: VBoxContainer
 var rematch_btn: Button
 var lobby_btn: Button
+var _accent_color: Color = Color(1.0, 0.78, 0.2)
 
 func _init() -> void:
 	name = "ArcadeMatchOverOverlay"
@@ -21,7 +22,7 @@ func _init() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
 func _ready() -> void:
-	theme = ArcadeTheme.build()
+	theme = ArcadeTheme.build(_accent_color)
 	_build_ui()
 
 func _build_ui() -> void:
@@ -45,7 +46,7 @@ func _build_ui() -> void:
 	winner_label = Label.new()
 	winner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	winner_label.add_theme_font_size_override("font_size", 30)
-	winner_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	winner_label.add_theme_color_override("font_color", _accent_color.lightened(0.1))
 	vbox.add_child(winner_label)
 
 	score_label = Label.new()
@@ -81,6 +82,12 @@ func _build_ui() -> void:
 	btn_row.add_child(lobby_btn)
 
 	ArcadeNav.wire_row_focus([rematch_btn, lobby_btn], true)
+
+func set_arcade_accent(accent: Color) -> void:
+	_accent_color = accent
+	theme = ArcadeTheme.build(accent)
+	if winner_label:
+		winner_label.add_theme_color_override("font_color", accent.lightened(0.1))
 
 func open(winner_text: String, score_text: String = "", rematch_text: String = "▶ REMATCH") -> void:
 	if winner_label:

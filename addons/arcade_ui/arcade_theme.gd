@@ -34,8 +34,21 @@ static func preset_name(preset: Preset) -> String:
 static func build_preset(preset: Preset) -> Theme:
 	return build(preset_accent(preset))
 
+static func apply_to(root: Node, preset: Preset) -> void:
+	if not is_instance_valid(root):
+		return
+	var pending: Array[Node] = [root]
+	var accent := preset_accent(preset)
+	while not pending.is_empty():
+		var current := pending.pop_back()
+		if current.has_method("set_arcade_accent"):
+			current.call("set_arcade_accent", accent)
+		for child in current.get_children():
+			pending.append(child)
+
 static func build(accent: Color = Color(1.0, 0.78, 0.2)) -> Theme:
 	var theme := Theme.new()
+	theme.set_color("accent_color", "ArcadeUI", accent)
 
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = Color(0.12, 0.14, 0.22, 0.94)

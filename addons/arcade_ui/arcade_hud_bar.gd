@@ -7,6 +7,8 @@ var _hbox: HBoxContainer
 var _slots: Array[Dictionary] = []
 var _center_panel: PanelContainer
 var _center_lbl: Label
+var _center_style: StyleBoxFlat
+var _accent_color: Color = Color(1.0, 0.78, 0.2)
 
 func _init() -> void:
 	name = "ArcadeHudBar"
@@ -49,7 +51,7 @@ func _add_center_badge() -> void:
 	_center_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.06, 0.08, 0.14, 0.90)
-	sb.border_color = Color(1.0, 0.78, 0.2, 0.85)
+	sb.border_color = Color(_accent_color.r, _accent_color.g, _accent_color.b, 0.85)
 	sb.set_border_width_all(2)
 	sb.set_corner_radius_all(10)
 	sb.content_margin_left = 16
@@ -57,6 +59,7 @@ func _add_center_badge() -> void:
 	sb.content_margin_top = 6
 	sb.content_margin_bottom = 6
 	_center_panel.add_theme_stylebox_override("panel", sb)
+	_center_style = sb
 	_hbox.add_child(_center_panel)
 
 	_center_lbl = Label.new()
@@ -65,8 +68,15 @@ func _add_center_badge() -> void:
 	_center_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_center_lbl.custom_minimum_size = Vector2(96, 0)
 	_center_lbl.add_theme_font_size_override("font_size", 22)
-	_center_lbl.add_theme_color_override("font_color", Color(1.0, 0.86, 0.35))
+	_center_lbl.add_theme_color_override("font_color", _accent_color.lightened(0.12))
 	_center_panel.add_child(_center_lbl)
+
+func set_arcade_accent(accent: Color) -> void:
+	_accent_color = accent
+	if _center_style:
+		_center_style.border_color = Color(accent.r, accent.g, accent.b, 0.85)
+	if _center_lbl:
+		_center_lbl.add_theme_color_override("font_color", accent.lightened(0.12))
 
 func _add_slot_panel(p_name: String, color: Color) -> void:
 	var panel := PanelContainer.new()
