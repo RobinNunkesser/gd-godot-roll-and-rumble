@@ -7,14 +7,15 @@ extends RefCounted
 # Kugel-Physik
 const BALL_RADIUS: float = 0.6
 const BALL_MASS: float = 3.0
-const DRIVE_FORCE: float = 42.0
+const DRIVE_FORCE: float = 48.0
 const MAX_LINEAR_SPEED: float = 16.0
-const BOOST_IMPULSE: float = 26.0
-const BOOST_COOLDOWN: float = 2.5
+const BOOST_IMPULSE: float = 34.0
+const BOOST_COOLDOWN: float = 2.0
 const BRAKE_DAMPING: float = 4.0
+const COLLISION_KNOCKBACK: float = 14.0
 
 # Material-Werte (Restitution & Reibung)
-const BALL_BOUNCE: float = 0.75
+const BALL_BOUNCE: float = 0.85
 const BALL_FRICTION: float = 0.55
 const ARENA_FRICTION: float = 0.60
 const ICE_FRICTION: float = 0.05

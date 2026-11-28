@@ -53,8 +53,8 @@ signal boost_triggered(pos: Vector3, dir: Vector3)
 func _ready() -> void:
 	initial_spawn_point = global_position if is_inside_tree() else position
 	mass = RollConfig.BALL_MASS
-	linear_damp = 1.0
-	angular_damp = 1.0
+	linear_damp = 0.45
+	angular_damp = 0.5
 	
 	# Physik-Material einrichten
 	var phys_mat = PhysicsMaterial.new()
@@ -221,11 +221,17 @@ func _handle_bot_ai(_delta: float) -> void:
 	var dist_from_center = Vector2(my_pos.x, my_pos.z).length()
 	var steer_vec = Vector2.ZERO
 	
-	# 1. Edge-Avoidance: Wenn gefährlich nah am Rand, mit Top-Priorität zur Mitte steuern
-	var danger_radius = RollConfig.ARENA_RADIUS * 0.68
+	# 1. Edge-Avoidance: Nur direkt am Rand hart zur Mitte steuern (+ Notfall-Boost)
+	var radial_2d = Vector2(my_pos.x, my_pos.z)
+	var to_center = -radial_2d.normalized() if dist_from_center > 0.01 else Vector2.ZERO
+	var vel_2d = Vector2(linear_velocity.x, linear_velocity.z)
+	var danger_radius = RollConfig.ARENA_RADIUS * 0.85
+	var soft_edge_radius = RollConfig.ARENA_RADIUS * 0.76
+	
 	if dist_from_center > danger_radius:
-		var to_center = -Vector2(my_pos.x, my_pos.z).normalized()
 		steer_vec = to_center * 1.5
+		if boost_cooldown_timer <= 0.0 and vel_2d.dot(to_center) < -1.5:
+			trigger_boost(to_center)
 	else:
 		# 2. Nächsten aktiven Gegner anvisieren (Seek & Ram)
 		var current_target = _get_active_target()
@@ -237,12 +243,16 @@ func _handle_bot_ai(_delta: float) -> void:
 			if opp_dist > 0.05:
 				steer_vec = to_opp.normalized()
 			
+			# Leichte Randkorrektur nur, wenn wir weiter außen sind als der Gegner
+			var opp_dist_center = Vector2(opp_pos.x, opp_pos.z).length()
+			if dist_from_center > soft_edge_radius and opp_dist_center < dist_from_center:
+				steer_vec = (steer_vec + to_center * 0.55).normalized()
+			
 			# 3. Rammschub / Boost bei Ausrichtung und passender Distanz
-			if opp_dist < 4.8 and opp_dist > 1.2 and boost_cooldown_timer <= 0.0:
-				var move_dir_2d = Vector2(linear_velocity.x, linear_velocity.z)
-				if move_dir_2d.length() > 1.0:
-					var dot = move_dir_2d.normalized().dot(to_opp.normalized())
-					if dot > 0.5: # schaut in Richtung des Gegners
+			if opp_dist < 6.5 and opp_dist > 0.9 and boost_cooldown_timer <= 0.0:
+				if vel_2d.length() > 0.6:
+					var dot = vel_2d.normalized().dot(to_opp.normalized())
+					if dot > 0.25: # schaut ungefähr in Richtung des Gegners
 						trigger_boost(to_opp.normalized())
 	
 	# 4. Kraft anwenden & Blickrichtung ausrichten
@@ -472,11 +482,22 @@ func _on_body_entered(body: Node) -> void:
 		last_hit_timer = 1.5
 		var rel_force = (linear_velocity - body.linear_velocity).length()
 		
+		# Direkter Knockback-Impuls basierend auf eigener Angriffsgeschwindigkeit zum Gegner
+		var my_pos = global_position if is_inside_tree() else position
+		var other_pos = body.global_position if body.is_inside_tree() else body.position
+		var push_2d = Vector2(other_pos.x - my_pos.x, other_pos.z - my_pos.z)
+		if push_2d.length_squared() > 0.001 and rel_force > 2.5:
+			var push_dir = Vector3(push_2d.x, 0.0, push_2d.y).normalized()
+			var attack_align = clampf(linear_velocity.dot(push_dir) / maxf(rel_force, 0.1), 0.15, 1.0)
+			var impact_scale = clampf(rel_force / RollConfig.MAX_LINEAR_SPEED, 0.25, 1.35)
+			var mass_ratio = clampf(mass / maxf(body.mass, 0.1), 0.5, 2.5)
+			body.apply_central_impulse(push_dir * RollConfig.COLLISION_KNOCKBACK * attack_align * impact_scale * mass_ratio)
+		
 		# Stachelkugel-Stoßkraftverstärkung
 		if active_powerup == int(PowerUpToken.Type.SPIKE_WHEEL):
-			var push_dir = (body.global_position - global_position).normalized()
+			var push_dir = (other_pos - my_pos).normalized()
 			body.apply_central_impulse(push_dir * RollConfig.BOOST_IMPULSE * RollConfig.POWERUP_SPIKE_IMPULSE_MULTIPLIER)
 			rel_force *= RollConfig.POWERUP_SPIKE_IMPULSE_MULTIPLIER
 			
-		impact_occurred.emit(rel_force, global_position if is_inside_tree() else position)
+		impact_occurred.emit(rel_force, my_pos)
 
