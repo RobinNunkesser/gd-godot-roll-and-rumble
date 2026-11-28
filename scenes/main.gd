@@ -314,13 +314,6 @@ func _build_ui() -> void:
 		card.ctrl_btn.text = "STEUERUNG"
 		ui_slot_btns.append(card.ctrl_btn)
 
-	var detect_btn := Button.new()
-	detect_btn.text = "🎮 CONTROLLER ERKENNEN"
-	detect_btn.custom_minimum_size = Vector2(320, 42)
-	detect_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	detect_btn.pressed.connect(_apply_auto_defaults)
-	shell.players_box.add_child(detect_btn)
-
 	# Subpage: ARENA
 	ui_arena_title_label = Label.new()
 	ui_arena_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
