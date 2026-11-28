@@ -53,7 +53,25 @@ func _build_platform() -> void:
 	rim.position = Vector3(0, RollConfig.ARENA_HEIGHT * 0.35, 0)
 	rim.material_override = get_surface_material("metal_rim")
 	body.add_child(rim)
-	
+
+	var col_scene := load("res://assets/kenney_3d/column.glb") as PackedScene
+	var flag_scene := load("res://assets/kenney_3d/flag-red.glb") as PackedScene
+	for i in range(6):
+		var ang := float(i) * (TAU / 6.0)
+		var r_pos := RollConfig.ARENA_RADIUS + 0.35
+		if col_scene:
+			var col_inst := col_scene.instantiate() as Node3D
+			if col_inst:
+				col_inst.position = Vector3(cos(ang) * r_pos, -0.4, sin(ang) * r_pos)
+				col_inst.scale = Vector3(0.55, 0.55, 0.55)
+				body.add_child(col_inst)
+		if flag_scene and i % 2 == 0:
+			var fl_inst := flag_scene.instantiate() as Node3D
+			if fl_inst:
+				fl_inst.position = Vector3(cos(ang) * (r_pos - 0.15), 0.2, sin(ang) * (r_pos - 0.15))
+				fl_inst.scale = Vector3(0.75, 0.75, 0.75)
+				body.add_child(fl_inst)
+
 	add_child(body)
 
 func _build_bumpers() -> void:
