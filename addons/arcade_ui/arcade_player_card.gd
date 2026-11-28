@@ -1,6 +1,8 @@
 class_name ArcadePlayerCard
 extends PanelContainer
 
+const ArcadeIcons = preload("res://addons/arcade_ui/arcade_icons.gd")
+
 ## Einheitliche Player-Slot-Karte für Couch-Multiplayer-Lobbies (Focus / Touch / Click, ohne Tastatur-Kürzel).
 
 signal control_cycled(slot_index: int)
@@ -21,7 +23,7 @@ func _init(idx: int = 0, border_color: Color = Color(0.2, 0.45, 0.7, 0.8), with_
 	show_team_button = with_team
 	name = "SlotCard%d" % idx
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	custom_minimum_size = Vector2(205, 0)
+	custom_minimum_size = Vector2(150, 0)
 
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.08, 0.12, 0.20, 0.94)
@@ -43,7 +45,8 @@ func _init(idx: int = 0, border_color: Color = Color(0.2, 0.45, 0.7, 0.8), with_
 
 	name_btn = Button.new()
 	name_btn.name = "SlotNameBtn%d" % slot_index
-	name_btn.text = "✏️ P%d" % (slot_index + 1)
+	name_btn.icon = ArcadeIcons.get_icon("edit")
+	name_btn.text = "P%d" % (slot_index + 1)
 	name_btn.custom_minimum_size = Vector2(0, 34)
 	name_btn.focus_mode = Control.FOCUS_ALL
 	name_btn.pressed.connect(func() -> void: name_clicked.emit(slot_index))
@@ -81,7 +84,7 @@ func set_title(text: String, color: Color = Color.WHITE) -> void:
 
 func set_player_name(p_name: String) -> void:
 	if name_btn:
-		name_btn.text = "✏️ %s" % p_name
+		name_btn.text = p_name
 
 func set_status(text: String, color: Color = Color(0.92, 0.95, 1.0)) -> void:
 	if status_label:

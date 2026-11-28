@@ -44,6 +44,11 @@ func _build_ui() -> void:
 
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(640, 0)
+	resized.connect(func() -> void:
+		var vw := size.x if size.x > 0.0 else get_viewport_rect().size.x
+		if vw > 0.0:
+			card.custom_minimum_size.x = minf(640.0, maxf(300.0, vw - 24.0))
+	)
 	center.add_child(card)
 
 	var vbox := VBoxContainer.new()

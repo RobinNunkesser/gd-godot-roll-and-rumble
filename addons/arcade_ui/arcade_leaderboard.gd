@@ -147,7 +147,7 @@ func populate_view(container: VBoxContainer, score_label: String = "Pkt", limit:
 	container.add_child(_make_table_row(["#", "SPIELER", "SIEGE", "CUPS", "SPIELE", score_label.to_upper()], true, -1))
 	for i in range(entries.size()):
 		var e := entries[i]
-		var rank_txt: String = str(["🥇", "🥈", "🥉"][i]) if i < 3 else "#%d" % (i + 1)
+		var rank_txt: String = "#%d" % (i + 1)
 		container.add_child(_make_table_row([
 			rank_txt,
 			str(e["name"]),

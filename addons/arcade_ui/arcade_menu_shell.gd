@@ -5,6 +5,7 @@ const ArcadeTheme = preload("res://addons/arcade_ui/arcade_theme.gd")
 const ArcadeNav = preload("res://addons/arcade_ui/arcade_nav.gd")
 const ArcadeDefaults = preload("res://addons/arcade_ui/arcade_defaults.gd")
 const ArcadeAudio = preload("res://addons/arcade_ui/arcade_audio.gd")
+const ArcadeIcons = preload("res://addons/arcade_ui/arcade_icons.gd")
 
 const BRANDING_LOGO_PATH := "res://addons/arcade_ui/assets/branding/hshl_logo.png"
 const SETTINGS_CFG_PATH := "user://arcade_ui_settings.cfg"
@@ -33,6 +34,7 @@ var _summary_lbl: Label
 var _footer_lbl: Label
 var _backdrop: ColorRect
 var _backdrop_mat: ShaderMaterial
+var _card: PanelContainer
 
 var _pages: Dictionary = {}
 var _main_vbox: VBoxContainer
@@ -88,6 +90,8 @@ func _ready() -> void:
 		ArcadeDefaults.apply_fullscreen()
 		if _fs_btn:
 			_fs_btn.text = "Vollbild: AN" if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN else "Vollbild: AUS"
+	resized.connect(_update_responsive_layout)
+	call_deferred("_update_responsive_layout")
 
 func _enable_focus_sfx() -> void:
 	_focus_sfx_ready = true
@@ -121,13 +125,13 @@ void fragment() {
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(960, 580)
-	center.add_child(card)
+	_card = PanelContainer.new()
+	_card.custom_minimum_size = Vector2(960, 580)
+	center.add_child(_card)
 
 	var root_vbox := VBoxContainer.new()
 	root_vbox.add_theme_constant_override("separation", 12)
-	card.add_child(root_vbox)
+	_card.add_child(root_vbox)
 
 	_title_lbl = Label.new()
 	_title_lbl.text = game_title
@@ -161,33 +165,33 @@ void fragment() {
 	_main_vbox.add_theme_constant_override("separation", 10)
 	main_center.add_child(_main_vbox)
 
-	_start_btn = _add_main_btn("▶ SPIEL STARTEN", func() -> void:
+	_start_btn = _add_main_btn("SPIEL STARTEN", func() -> void:
 		if audio:
 			audio.play_sfx("confirm")
 			if auto_lobby_music:
 				audio.stop_lobby_music()
 		start_requested.emit()
-	)
-	_players_btn = _add_main_btn("👥 SPIELER & STEUERUNG", func() -> void:
+	, "play")
+	_players_btn = _add_main_btn("SPIELER & STEUERUNG", func() -> void:
 		if audio: audio.play_sfx("confirm")
 		show_page(Page.PLAYERS)
-	)
-	_arena_btn = _add_main_btn("🏟️ ARENA", func() -> void:
+	, "players")
+	_arena_btn = _add_main_btn("ARENA", func() -> void:
 		if audio: audio.play_sfx("confirm")
 		show_page(Page.ARENA)
-	)
-	_match_btn = _add_main_btn("🏆 MATCH & REGELN", func() -> void:
+	, "arena")
+	_match_btn = _add_main_btn("MATCH & REGELN", func() -> void:
 		if audio: audio.play_sfx("confirm")
 		show_page(Page.MATCH)
-	)
-	_settings_btn = _add_main_btn("⚙️ EINSTELLUNGEN", func() -> void:
+	, "trophy")
+	_settings_btn = _add_main_btn("EINSTELLUNGEN", func() -> void:
 		if audio: audio.play_sfx("confirm")
 		show_page(Page.SETTINGS)
-	)
-	_extra_btn = _add_main_btn("📊 BESTENLISTE", func() -> void:
+	, "settings")
+	_extra_btn = _add_main_btn("BESTENLISTE", func() -> void:
 		if audio: audio.play_sfx("confirm")
 		show_page(Page.EXTRA)
-	)
+	, "leaderboard")
 	_extra_btn.visible = false
 	_refresh_main_focus()
 
@@ -209,10 +213,13 @@ void fragment() {
 	_build_default_settings()
 	show_page(Page.MAIN)
 
-func _add_main_btn(label_text: String, cb: Callable) -> Button:
+func _add_main_btn(label_text: String, cb: Callable, icon_name: String = "") -> Button:
 	var btn := Button.new()
 	btn.text = label_text
-	btn.custom_minimum_size = Vector2(420, 48)
+	if icon_name != "":
+		btn.icon = ArcadeIcons.get_icon(icon_name)
+		btn.add_theme_constant_override("h_separation", 10)
+	btn.custom_minimum_size = Vector2(360, 48)
 	btn.focus_mode = Control.FOCUS_ALL
 	btn.pressed.connect(cb)
 	ArcadeNav.attach_button_juice(btn)
@@ -236,13 +243,22 @@ func _make_subpage(parent: VBoxContainer, page: Page, header_text: String) -> VB
 	wrap.add_child(hdr)
 	_page_headers.append(hdr)
 
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	wrap.add_child(scroll)
+
 	var content := VBoxContainer.new()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 10)
-	wrap.add_child(content)
+	scroll.add_child(content)
 
 	var back_btn := Button.new()
-	back_btn.text = "← ZURÜCK"
+	back_btn.icon = ArcadeIcons.get_icon("back")
+	back_btn.text = "ZURÜCK"
+	back_btn.add_theme_constant_override("h_separation", 8)
 	back_btn.custom_minimum_size = Vector2(240, 44)
 	back_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	back_btn.focus_mode = Control.FOCUS_ALL
@@ -417,6 +433,39 @@ func set_branding_enabled(enabled: bool, persist: bool = true) -> void:
 		cfg.set_value("ui", "branding_enabled", branding_enabled)
 		cfg.save(SETTINGS_CFG_PATH)
 
+func _update_responsive_layout() -> void:
+	var vp := size
+	if vp.x <= 0.0:
+		vp = get_viewport_rect().size
+	if vp.x <= 0.0:
+		return
+	if _card:
+		_card.custom_minimum_size = Vector2(
+			minf(960.0, maxf(300.0, vp.x - 28.0)),
+			minf(580.0, maxf(320.0, vp.y - 28.0))
+		)
+	var inner_w := minf(420.0, maxf(240.0, vp.x - 84.0))
+	if _main_vbox:
+		_main_vbox.custom_minimum_size.x = inner_w
+	for b in _main_btns:
+		if is_instance_valid(b):
+			b.custom_minimum_size.x = inner_w
+	var setting_w := minf(360.0, maxf(240.0, vp.x - 84.0))
+	for b in [_fs_btn, _touch_btn, _branding_btn]:
+		if is_instance_valid(b):
+			b.custom_minimum_size.x = setting_w
+	if _branding_badge:
+		if vp.x < 780.0:
+			_branding_badge.offset_left = -156
+			_branding_badge.offset_right = -10
+			_branding_badge.offset_top = 10
+			_branding_badge.offset_bottom = 58
+		else:
+			_branding_badge.offset_left = -228
+			_branding_badge.offset_right = -18
+			_branding_badge.offset_top = 18
+			_branding_badge.offset_bottom = 90
+
 func _set_bus_linear(bus_name: StringName, linear: float) -> void:
 	var idx := AudioServer.get_bus_index(bus_name)
 	if idx < 0:
@@ -462,12 +511,12 @@ func _refresh_main_focus() -> void:
 	_apply_vertical_focus(visible_btns)
 
 ## Konfiguriert das Menü für Singleplayer- oder benutzerdefinierte Modi (blendet ungenutzte Tabs aus und passt Labels an).
-func set_singleplayer_mode(enabled: bool, arena_label: String = "🏟️ LEVEL / MODUS", match_label: String = "⚙️ OPTIONEN", extra_label: String = "📊 HIGHSCORES") -> void:
+func set_singleplayer_mode(enabled: bool, arena_label: String = "LEVEL / MODUS", match_label: String = "OPTIONEN", extra_label: String = "HIGHSCORES") -> void:
 	configure_profile({
 		"show_players": not enabled,
-		"arena_label": arena_label if enabled else "🏟️ ARENA",
-		"match_label": match_label if enabled else "🏆 MATCH & REGELN",
-		"extra_label": extra_label if enabled else "📊 BESTENLISTE",
+		"arena_label": arena_label if enabled else "ARENA",
+		"match_label": match_label if enabled else "MATCH & REGELN",
+		"extra_label": extra_label if enabled else "BESTENLISTE",
 		"show_extra": enabled
 	})
 
