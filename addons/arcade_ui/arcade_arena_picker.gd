@@ -8,6 +8,7 @@ const ArcadeNav = preload("res://addons/arcade_ui/arcade_nav.gd")
 signal pool_changed(enabled_ids: Array[String])
 signal arena_focused(arena_id: String)
 signal action_pressed(action_id: String)
+signal focus_layout_changed
 
 var min_enabled: int = 1
 
@@ -33,6 +34,7 @@ var _filter_btns: Array[Button] = []
 var _item_btns: Array[Button] = []
 var _action_btns: Array[Button] = []
 var _extra_btn_map: Dictionary = {}
+var _back_control: Control = null
 
 func _init() -> void:
 	name = "ArcadeArenaPicker"
@@ -225,6 +227,19 @@ func enable_all() -> void:
 	_rebuild_all()
 	pool_changed.emit(get_enabled_ids())
 
+func set_back_control(ctrl: Control) -> void:
+	_back_control = ctrl
+	_wire_focus()
+
+func get_primary_focus_control() -> Control:
+	if not _item_btns.is_empty() and is_instance_valid(_item_btns[0]):
+		return _item_btns[0]
+	if not _filter_btns.is_empty() and is_instance_valid(_filter_btns[0]):
+		return _filter_btns[0]
+	if not _action_btns.is_empty() and is_instance_valid(_action_btns[0]):
+		return _action_btns[0]
+	return _back_control
+
 func get_focus_controls() -> Array[Control]:
 	var out: Array[Control] = []
 	for b in _item_btns:
@@ -243,17 +258,79 @@ func _find_index(arena_id: String) -> int:
 			return i
 	return -1
 
+func _capture_focus_state() -> Dictionary:
+	var vp := get_viewport()
+	var owner: Control = vp.gui_get_focus_owner() if vp else null
+	if owner == null or (owner != self and not is_ancestor_of(owner)):
+		return {}
+	if owner == _toggle_btn:
+		return {"kind": "toggle"}
+	var item_idx := _item_btns.find(owner)
+	if item_idx >= 0:
+		return {"kind": "item", "idx": item_idx, "id": str(owner.get_meta("arena_id", _selected_id))}
+	var filter_idx := _filter_btns.find(owner)
+	if filter_idx >= 0:
+		return {"kind": "filter", "idx": filter_idx, "tag": str(owner.get_meta("filter_tag", _active_filter))}
+	var action_idx := _action_btns.find(owner)
+	if action_idx >= 0:
+		return {"kind": "action", "idx": action_idx}
+	return {}
+
+func _restore_focus_state(state: Dictionary) -> void:
+	if state.is_empty():
+		return
+	var kind := str(state.get("kind", ""))
+	var target: Control = null
+	if kind == "item":
+		var wanted_id := str(state.get("id", _selected_id))
+		for b in _item_btns:
+			if str(b.get_meta("arena_id", "")) == wanted_id:
+				target = b
+				break
+		if target == null and not _item_btns.is_empty():
+			var idx := clampi(int(state.get("idx", 0)), 0, _item_btns.size() - 1)
+			target = _item_btns[idx]
+		if target == null:
+			target = get_primary_focus_control()
+	elif kind == "toggle":
+		if is_instance_valid(_toggle_btn) and _toggle_btn.visible:
+			target = _toggle_btn
+		else:
+			target = get_primary_focus_control()
+	elif kind == "filter":
+		var wanted_tag := str(state.get("tag", _active_filter))
+		for b in _filter_btns:
+			if str(b.get_meta("filter_tag", "")) == wanted_tag:
+				target = b
+				break
+		if target == null and not _filter_btns.is_empty():
+			target = _filter_btns[clampi(int(state.get("idx", 0)), 0, _filter_btns.size() - 1)]
+	elif kind == "action":
+		if not _action_btns.is_empty():
+			target = _action_btns[clampi(int(state.get("idx", 0)), 0, _action_btns.size() - 1)]
+		else:
+			target = get_primary_focus_control()
+	if is_instance_valid(target) and target.is_inside_tree():
+		target.grab_focus()
+
+func _clear_children(parent: Node) -> void:
+	for ch in parent.get_children():
+		parent.remove_child(ch)
+		ch.queue_free()
+
 func _rebuild_all() -> void:
+	var focus_state := _capture_focus_state()
 	_rebuild_filters()
 	_rebuild_list()
 	_rebuild_actions()
 	_refresh_preview()
 	_wire_focus()
+	_restore_focus_state(focus_state)
+	focus_layout_changed.emit()
 
 func _rebuild_filters() -> void:
 	_filter_btns.clear()
-	for ch in _filter_row.get_children():
-		ch.queue_free()
+	_clear_children(_filter_row)
 
 	var tags: Array[String] = ["ALLE", "AKTIV"]
 	for a in _arenas:
@@ -277,14 +354,14 @@ func _rebuild_filters() -> void:
 		if tag == _active_filter:
 			btn.add_theme_color_override("font_color", _accent_color)
 		var t_copy := tag
+		btn.set_meta("filter_tag", t_copy)
 		btn.pressed.connect(func() -> void: set_filter(t_copy))
 		_filter_row.add_child(btn)
 		_filter_btns.append(btn)
 
 func _rebuild_list() -> void:
 	_item_btns.clear()
-	for ch in _list_box.get_children():
-		ch.queue_free()
+	_clear_children(_list_box)
 
 	var filtered := get_filtered_arenas()
 	if filtered.is_empty():
@@ -307,9 +384,12 @@ func _rebuild_list() -> void:
 		btn.add_theme_font_size_override("font_size", 14)
 		btn.text = "%s  %s" % ["[✓]" if on else "[  ]", str(a.get("title", aid))]
 		btn.add_theme_color_override("font_color", Color(0.65, 0.95, 0.72) if on else Color(0.62, 0.68, 0.78))
+		btn.set_meta("arena_id", aid)
 		btn.focus_entered.connect(func() -> void:
 			_selected_id = aid
 			_refresh_preview()
+			if is_instance_valid(_toggle_btn) and _toggle_btn.visible:
+				_toggle_btn.focus_neighbor_left = _toggle_btn.get_path_to(btn)
 			arena_focused.emit(aid)
 		)
 		btn.pressed.connect(func() -> void:
@@ -322,8 +402,7 @@ func _rebuild_list() -> void:
 func _rebuild_actions() -> void:
 	_action_btns.clear()
 	_extra_btn_map.clear()
-	for ch in _action_row.get_children():
-		ch.queue_free()
+	_clear_children(_action_row)
 
 	var select_only_cb := func() -> void:
 		if _selected_id != "":
@@ -389,7 +468,36 @@ func _wire_focus() -> void:
 		last_item.focus_neighbor_bottom = last_item.get_path_to(_action_btns[0])
 		for ab in _action_btns:
 			ab.focus_neighbor_top = ab.get_path_to(last_item)
+	elif not _filter_btns.is_empty() and not _action_btns.is_empty():
+		for ab in _action_btns:
+			ab.focus_neighbor_top = ab.get_path_to(_filter_btns[0])
+		for fb in _filter_btns:
+			fb.focus_neighbor_bottom = fb.get_path_to(_action_btns[0])
 	if not _item_btns.is_empty() and not _filter_btns.is_empty():
 		_item_btns[0].focus_neighbor_top = _item_btns[0].get_path_to(_filter_btns[0])
 		for fb in _filter_btns:
 			fb.focus_neighbor_bottom = fb.get_path_to(_item_btns[0])
+	if is_instance_valid(_toggle_btn) and _toggle_btn.visible:
+		var selected_btn: Button = _item_btns[0] if not _item_btns.is_empty() else null
+		for ib in _item_btns:
+			ib.focus_neighbor_right = ib.get_path_to(_toggle_btn)
+			if str(ib.get_meta("arena_id", "")) == _selected_id:
+				selected_btn = ib
+		if selected_btn != null:
+			_toggle_btn.focus_neighbor_left = _toggle_btn.get_path_to(selected_btn)
+		if not _filter_btns.is_empty():
+			_toggle_btn.focus_neighbor_top = _toggle_btn.get_path_to(_filter_btns[0])
+		if not _action_btns.is_empty():
+			_toggle_btn.focus_neighbor_bottom = _toggle_btn.get_path_to(_action_btns[0])
+	if is_instance_valid(_back_control):
+		for ab in _action_btns:
+			ab.focus_neighbor_bottom = ab.get_path_to(_back_control)
+		if not _action_btns.is_empty():
+			_back_control.focus_neighbor_top = _back_control.get_path_to(_action_btns[0])
+		elif not _item_btns.is_empty():
+			_back_control.focus_neighbor_top = _back_control.get_path_to(_item_btns[_item_btns.size() - 1])
+		var top_entry: Control = _item_btns[0] if not _item_btns.is_empty() else (_filter_btns[0] if not _filter_btns.is_empty() else null)
+		if top_entry != null:
+			_back_control.focus_neighbor_bottom = _back_control.get_path_to(top_entry)
+		for fb in _filter_btns:
+			fb.focus_neighbor_top = fb.get_path_to(_back_control)

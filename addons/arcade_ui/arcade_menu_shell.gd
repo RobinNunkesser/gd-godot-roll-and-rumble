@@ -485,6 +485,21 @@ func wire_players_cards(cards: Array) -> void:
 	if is_instance_valid(first):
 		_page_first_focus[Page.PLAYERS] = first
 
+func wire_arena_picker(picker: Control, page: Page = Page.ARENA) -> void:
+	if picker == null:
+		return
+	var back_btn: Button = _back_btns.get(page)
+	if picker.has_method("set_back_control"):
+		picker.call("set_back_control", back_btn)
+	var update_first := func() -> void:
+		if picker.has_method("get_primary_focus_control"):
+			var p: Control = picker.call("get_primary_focus_control")
+			if is_instance_valid(p):
+				_page_first_focus[page] = p
+	update_first.call()
+	if picker.has_signal("focus_layout_changed"):
+		picker.connect("focus_layout_changed", update_first)
+
 func _apply_vertical_focus(all_ctrls: Array) -> void:
 	ArcadeNav.wire_vertical_focus(all_ctrls, true)
 
