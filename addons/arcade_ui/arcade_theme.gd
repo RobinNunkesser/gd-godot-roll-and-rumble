@@ -1,4 +1,4 @@
-class_name CouchTheme
+class_name ArcadeTheme
 extends RefCounted
 
 ## Einheitliches Arcade-Dark-Theme mit klarem Gamepad-Focus-Rahmen für Couch-Multiplayer-Menüs.

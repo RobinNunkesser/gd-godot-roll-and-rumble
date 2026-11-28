@@ -1,4 +1,4 @@
-class_name CouchPlayerCard
+class_name ArcadePlayerCard
 extends PanelContainer
 
 ## Einheitliche Player-Slot-Karte für Couch-Multiplayer-Lobbies (Focus / Touch / Click, ohne Tastatur-Kürzel).

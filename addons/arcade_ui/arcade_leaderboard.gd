@@ -1,4 +1,4 @@
-class_name CouchLeaderboard
+class_name ArcadeLeaderboard
 extends RefCounted
 
 ## Gemeinsame lokale, namensbasierte Bestenliste für alle Couch-Multiplayer-Spiele.

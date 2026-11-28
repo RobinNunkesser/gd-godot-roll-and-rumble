@@ -19,16 +19,16 @@ const PowerUpSpawner = preload("res://scripts/powerup_spawner.gd")
 const PowerUpToken = preload("res://scripts/powerup_token.gd")
 const LeaderboardManager = preload("res://scripts/leaderboard_manager.gd")
 const Trophy3D = preload("res://scripts/trophy_3d.gd")
-const CouchNav = preload("res://addons/couch_ui/couch_nav.gd")
-const CouchTheme = preload("res://addons/couch_ui/couch_theme.gd")
-const CouchPauseOverlay = preload("res://addons/couch_ui/couch_pause_overlay.gd")
-const CouchTouchOverlay = preload("res://addons/couch_ui/couch_touch_overlay.gd")
-const CouchPlayerCard = preload("res://addons/couch_ui/couch_player_card.gd")
-const CouchMenuShell = preload("res://addons/couch_ui/couch_menu_shell.gd")
-const CouchDefaults = preload("res://addons/couch_ui/couch_defaults.gd")
-const CouchMatchOverOverlay = preload("res://addons/couch_ui/couch_match_over_overlay.gd")
-const CouchLeaderboard = preload("res://addons/couch_ui/couch_leaderboard.gd")
-const CouchNameModal = preload("res://addons/couch_ui/couch_name_modal.gd")
+const ArcadeNav = preload("res://addons/arcade_ui/arcade_nav.gd")
+const ArcadeTheme = preload("res://addons/arcade_ui/arcade_theme.gd")
+const ArcadePauseOverlay = preload("res://addons/arcade_ui/arcade_pause_overlay.gd")
+const ArcadeTouchOverlay = preload("res://addons/arcade_ui/arcade_touch_overlay.gd")
+const ArcadePlayerCard = preload("res://addons/arcade_ui/arcade_player_card.gd")
+const ArcadeMenuShell = preload("res://addons/arcade_ui/arcade_menu_shell.gd")
+const ArcadeDefaults = preload("res://addons/arcade_ui/arcade_defaults.gd")
+const ArcadeMatchOverOverlay = preload("res://addons/arcade_ui/arcade_match_over_overlay.gd")
+const ArcadeLeaderboard = preload("res://addons/arcade_ui/arcade_leaderboard.gd")
+const ArcadeNameModal = preload("res://addons/arcade_ui/arcade_name_modal.gd")
 
 var state_manager: RollStateManager
 var leaderboard: LeaderboardManager
@@ -48,14 +48,14 @@ var players: Array[PlayerBall] = []
 var camera: SharedArenaCamera
 
 var ui_lobby_panel: Control
-var ui_pause_overlay: CouchPauseOverlay
-var ui_match_over_overlay: CouchMatchOverOverlay
-var ui_touch_overlay: CouchTouchOverlay
+var ui_pause_overlay: ArcadePauseOverlay
+var ui_match_over_overlay: ArcadeMatchOverOverlay
+var ui_touch_overlay: ArcadeTouchOverlay
 var ui_slot_btns: Array[Button] = []
-var ui_slot_cards: Array[CouchPlayerCard] = []
+var ui_slot_cards: Array[ArcadePlayerCard] = []
 var player_names: Array[String] = ["P1", "P2", "P3", "P4"]
-var couch_lb: CouchLeaderboard
-var ui_name_modal: CouchNameModal
+var couch_lb: ArcadeLeaderboard
+var ui_name_modal: ArcadeNameModal
 var ui_lb_table_lbl: Label
 var ui_arena_btn: Button
 var ui_lobby_start_btn: Button
@@ -159,7 +159,7 @@ func _build_scene() -> void:
 	add_child(powerup_spawner)
 	
 	# 4. 4 Spieler-Kugeln mit smarten Gamepad-Auto-Defaults
-	var slot_defaults := CouchDefaults.detect_slot_modes(4)
+	var slot_defaults := ArcadeDefaults.detect_slot_modes(4)
 	var p1_ctrl: PlayerBall.ControlType = (PlayerBall.ControlType.GAMEPAD_0 + slot_defaults[0]["device"]) as PlayerBall.ControlType if slot_defaults[0]["kind"] == "gamepad" else PlayerBall.ControlType.HUMAN_KB1
 	var p2_ctrl: PlayerBall.ControlType = (PlayerBall.ControlType.GAMEPAD_0 + slot_defaults[1]["device"]) as PlayerBall.ControlType if slot_defaults[1]["kind"] == "gamepad" else PlayerBall.ControlType.AI_BOT
 	var p3_ctrl: PlayerBall.ControlType = (PlayerBall.ControlType.GAMEPAD_0 + slot_defaults[2]["device"]) as PlayerBall.ControlType if slot_defaults[2]["kind"] == "gamepad" else PlayerBall.ControlType.OFF
@@ -268,8 +268,8 @@ func _build_ui() -> void:
 	in_game_hint.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 0.75))
 	ui_hud_container.add_child(in_game_hint)
 	
-	# --- Pre-Match Hauptmenü (ClanBomber-Stil via CouchMenuShell) ---
-	var shell := CouchMenuShell.new("ROLL & RUMBLE 3D", "3D Physics Bumper Sumo Party")
+	# --- Pre-Match Hauptmenü (ClanBomber-Stil via ArcadeMenuShell) ---
+	var shell := ArcadeMenuShell.new("ROLL & RUMBLE 3D", "3D Physics Bumper Sumo Party")
 	shell.start_requested.connect(start_match_from_lobby)
 	shell.master_volume_changed.connect(func(v: float) -> void:
 		if sound_manager:
@@ -290,7 +290,7 @@ func _build_ui() -> void:
 	ui_lobby_panel = shell
 
 	# Subpage: PLAYERS
-	couch_lb = CouchLeaderboard.new("roll_and_rumble")
+	couch_lb = ArcadeLeaderboard.new("roll_and_rumble")
 	ui_slot_labels.clear()
 	ui_slot_btns.clear()
 	ui_slot_cards.clear()
@@ -300,7 +300,7 @@ func _build_ui() -> void:
 	cards_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	shell.players_box.add_child(cards_row)
 	for i in range(4):
-		var card := CouchPlayerCard.new(i, p_colors[i], false)
+		var card := ArcadePlayerCard.new(i, p_colors[i], false)
 		card.custom_minimum_size = Vector2(205, 310)
 		card.control_cycled.connect(cycle_player_slot)
 		card.name_clicked.connect(_on_slot_name_clicked)
@@ -339,7 +339,7 @@ func _build_ui() -> void:
 	ui_arena_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	ui_arena_btn.pressed.connect(cycle_arena)
 	shell.arena_box.add_child(ui_arena_btn)
-	shell.wire_subpage_focus(CouchMenuShell.Page.ARENA, [ui_arena_btn])
+	shell.wire_subpage_focus(ArcadeMenuShell.Page.ARENA, [ui_arena_btn])
 
 	# Subpage: MATCH & REGELN
 	ui_mode_label = Label.new()
@@ -364,7 +364,7 @@ func _build_ui() -> void:
 	ui_powerup_toggle_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	ui_powerup_toggle_btn.pressed.connect(toggle_powerups)
 	shell.match_box.add_child(ui_powerup_toggle_btn)
-	shell.wire_subpage_focus(CouchMenuShell.Page.MATCH, [ui_mode_toggle_btn, ui_powerup_toggle_btn])
+	shell.wire_subpage_focus(ArcadeMenuShell.Page.MATCH, [ui_mode_toggle_btn, ui_powerup_toggle_btn])
 
 	# Subpage: EXTRA (Bestenliste)
 	shell.enable_extra_page("🏆 BESTENLISTE")
@@ -393,13 +393,13 @@ func _build_ui() -> void:
 		ui_lb_table_lbl.text = couch_lb.format_table("KOs")
 	)
 	lb_row.add_child(lb_reset_btn)
-	CouchNav.wire_row_focus([ui_leaderboard_btn, lb_reset_btn], true)
-	shell.wire_subpage_focus(CouchMenuShell.Page.EXTRA, [ui_leaderboard_btn])
+	ArcadeNav.wire_row_focus([ui_leaderboard_btn, lb_reset_btn], true)
+	shell.wire_subpage_focus(ArcadeMenuShell.Page.EXTRA, [ui_leaderboard_btn])
 
 	canvas.add_child(ui_lobby_panel)
 	call_deferred("_setup_lobby_focus")
 
-	ui_pause_overlay = CouchPauseOverlay.new()
+	ui_pause_overlay = ArcadePauseOverlay.new()
 	ui_pause_overlay.restarted.connect(func() -> void:
 		if state_manager:
 			state_manager.reset_match()
@@ -419,7 +419,7 @@ func _build_ui() -> void:
 	)
 	canvas.add_child(ui_pause_overlay)
 
-	ui_match_over_overlay = CouchMatchOverOverlay.new()
+	ui_match_over_overlay = ArcadeMatchOverOverlay.new()
 	ui_match_over_overlay.rematch_pressed.connect(func() -> void:
 		_clear_trophy()
 		if state_manager:
@@ -428,7 +428,7 @@ func _build_ui() -> void:
 	ui_match_over_overlay.lobby_pressed.connect(return_to_lobby)
 	canvas.add_child(ui_match_over_overlay)
 
-	ui_name_modal = CouchNameModal.new()
+	ui_name_modal = ArcadeNameModal.new()
 	ui_name_modal.name_confirmed.connect(func(slot_idx: int, new_name: String) -> void:
 		player_names[slot_idx] = new_name
 		if slot_idx < ui_slot_cards.size():
@@ -438,7 +438,7 @@ func _build_ui() -> void:
 	)
 	canvas.add_child(ui_name_modal)
 
-	ui_touch_overlay = CouchTouchOverlay.new()
+	ui_touch_overlay = ArcadeTouchOverlay.new()
 	ui_touch_overlay.primary_label = "BOOST"
 	ui_touch_overlay.pause_pressed.connect(func() -> void:
 		if ui_pause_overlay:
@@ -564,7 +564,7 @@ func _on_slot_name_clicked(slot_idx: int) -> void:
 		ui_name_modal.open(slot_idx, player_names[slot_idx], rec)
 
 func _apply_auto_defaults() -> void:
-	var slot_defaults := CouchDefaults.detect_slot_modes(4)
+	var slot_defaults := ArcadeDefaults.detect_slot_modes(4)
 	for i in range(4):
 		if slot_defaults[i]["kind"] == "gamepad":
 			players[i].set_control_type((PlayerBall.ControlType.GAMEPAD_0 + slot_defaults[i]["device"]) as PlayerBall.ControlType)
@@ -578,15 +578,15 @@ func _apply_auto_defaults() -> void:
 	_update_menu_summary()
 
 func _setup_lobby_focus() -> void:
-	if not (ui_lobby_panel is CouchMenuShell):
+	if not (ui_lobby_panel is ArcadeMenuShell):
 		return
-	var shell := ui_lobby_panel as CouchMenuShell
-	CouchNav.wire_row_focus(ui_slot_btns, true)
+	var shell := ui_lobby_panel as ArcadeMenuShell
+	ArcadeNav.wire_row_focus(ui_slot_btns, true)
 	var name_btns: Array = []
 	for c in ui_slot_cards:
 		name_btns.append(c.name_btn)
-	CouchNav.wire_row_focus(name_btns, true)
-	var back_p := shell.get_back_button(CouchMenuShell.Page.PLAYERS)
+	ArcadeNav.wire_row_focus(name_btns, true)
+	var back_p := shell.get_back_button(ArcadeMenuShell.Page.PLAYERS)
 	for i in range(ui_slot_cards.size()):
 		var c := ui_slot_cards[i]
 		c.name_btn.focus_neighbor_bottom = c.name_btn.get_path_to(c.ctrl_btn)
@@ -597,11 +597,11 @@ func _setup_lobby_focus() -> void:
 	if is_instance_valid(back_p) and not ui_slot_cards.is_empty():
 		back_p.focus_neighbor_top = back_p.get_path_to(ui_slot_cards[0].ctrl_btn)
 		back_p.focus_neighbor_bottom = back_p.get_path_to(ui_slot_cards[0].name_btn)
-		shell._page_first_focus[CouchMenuShell.Page.PLAYERS] = ui_slot_cards[0].name_btn
+		shell._page_first_focus[ArcadeMenuShell.Page.PLAYERS] = ui_slot_cards[0].name_btn
 	_update_menu_summary()
 
 func _update_menu_summary() -> void:
-	if not (ui_lobby_panel is CouchMenuShell):
+	if not (ui_lobby_panel is ArcadeMenuShell):
 		return
 	var humans := 0
 	var bots := 0
@@ -612,30 +612,30 @@ func _update_menu_summary() -> void:
 			humans += 1
 	var arena_txt := current_arena.arena_name if current_arena else "Arena"
 	var mode_txt := state_manager.get_mode_name() if state_manager else "Einzelmatch"
-	(ui_lobby_panel as CouchMenuShell).set_summary("%d Mensch(en) + %d KI-Bot(s)   •   %s   •   %s" % [humans, bots, arena_txt, mode_txt])
+	(ui_lobby_panel as ArcadeMenuShell).set_summary("%d Mensch(en) + %d KI-Bot(s)   •   %s   •   %s" % [humans, bots, arena_txt, mode_txt])
 
 func _unhandled_input(event: InputEvent) -> void:
 	if ui_pause_overlay and ui_pause_overlay.visible:
 		return
 	if state_manager.current_state == RollStateManager.MatchState.LOBBY:
 		if ui_leaderboard_modal and ui_leaderboard_modal.visible:
-			if CouchNav.is_back(event) or (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_L):
+			if ArcadeNav.is_back(event) or (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_L):
 				toggle_leaderboard(false)
 				return
-		if CouchNav.is_start(event) and not (event is InputEventKey and event.keycode == KEY_ESCAPE):
+		if ArcadeNav.is_start(event) and not (event is InputEventKey and event.keycode == KEY_ESCAPE):
 			start_match_from_lobby()
 			return
 		if event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_A:
-			if CouchNav.activate_focused(get_viewport()):
+			if ArcadeNav.activate_focused(get_viewport()):
 				return
 	else:
-		if CouchNav.is_start(event):
+		if ArcadeNav.is_start(event):
 			if ui_pause_overlay:
 				ui_pause_overlay.open()
 			else:
 				return_to_lobby()
 			return
-		if CouchNav.is_confirm(event):
+		if ArcadeNav.is_confirm(event):
 			if state_manager.current_state == RollStateManager.MatchState.ROUND_OVER:
 				state_manager.start_next_round()
 				return
@@ -783,8 +783,8 @@ func return_to_lobby() -> void:
 	_update_menu_summary()
 	_update_mode_ui()
 	_update_menu_summary()
-	if ui_lobby_panel is CouchMenuShell:
-		(ui_lobby_panel as CouchMenuShell).show_page(CouchMenuShell.Page.MAIN)
+	if ui_lobby_panel is ArcadeMenuShell:
+		(ui_lobby_panel as ArcadeMenuShell).show_page(ArcadeMenuShell.Page.MAIN)
 	_update_menu_summary()
 
 func restart_game() -> void:

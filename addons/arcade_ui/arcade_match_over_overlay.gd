@@ -1,4 +1,4 @@
-class_name CouchMatchOverOverlay
+class_name ArcadeMatchOverOverlay
 extends Control
 
 ## Einheitlicher Match-/Cup-Abschluss-Screen für Couch-Multiplayer-Spiele (Gamepad + Touch + Maus).
@@ -13,12 +13,12 @@ var rematch_btn: Button
 var lobby_btn: Button
 
 func _init() -> void:
-	name = "CouchMatchOverOverlay"
+	name = "ArcadeMatchOverOverlay"
 	visible = false
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
 func _ready() -> void:
-	theme = CouchTheme.build()
+	theme = ArcadeTheme.build()
 	_build_ui()
 
 func _build_ui() -> void:
@@ -77,7 +77,7 @@ func _build_ui() -> void:
 	)
 	btn_row.add_child(lobby_btn)
 
-	CouchNav.wire_row_focus([rematch_btn, lobby_btn], true)
+	ArcadeNav.wire_row_focus([rematch_btn, lobby_btn], true)
 
 func open(winner_text: String, score_text: String = "", rematch_text: String = "▶ REMATCH") -> void:
 	if winner_label:
@@ -94,10 +94,10 @@ func open(winner_text: String, score_text: String = "", rematch_text: String = "
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
-	if CouchNav.is_back(event):
+	if ArcadeNav.is_back(event):
 		get_viewport().set_input_as_handled()
 		visible = false
 		lobby_pressed.emit()
 	elif event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_A and not event.is_action("ui_accept"):
-		if CouchNav.activate_focused(get_viewport()):
+		if ArcadeNav.activate_focused(get_viewport()):
 			get_viewport().set_input_as_handled()

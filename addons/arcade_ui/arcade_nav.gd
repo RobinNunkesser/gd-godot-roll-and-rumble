@@ -1,4 +1,4 @@
-class_name CouchNav
+class_name ArcadeNav
 extends RefCounted
 
 ## Einheitliche Eingabe-Helfer für Gamepad- und Tastatur-Menüführung in Couch-Multiplayer-Spielen.

@@ -1,4 +1,4 @@
-class_name CouchPauseOverlay
+class_name ArcadePauseOverlay
 extends Control
 
 ## Einheitliches Pause- & Audio-Overlay für Couch-Multiplayer-Spiele (Gamepad + Tastatur + Touch).
@@ -24,13 +24,13 @@ var _custom_btns: Array[Button] = []
 var _hint_lbl: Label
 
 func _init() -> void:
-	name = "CouchPauseOverlay"
+	name = "ArcadePauseOverlay"
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
 func _ready() -> void:
-	theme = CouchTheme.build()
+	theme = ArcadeTheme.build()
 	_build_ui()
 
 func _make_slider_row(parent: VBoxContainer, label_text: String, initial: float, on_change: Callable) -> HSlider:
@@ -157,15 +157,15 @@ func refresh_focus() -> void:
 			order.append(b)
 	order.append(_fs_btn)
 	order.append(_lobby_btn)
-	CouchNav.wire_vertical_focus(order, true)
+	ArcadeNav.wire_vertical_focus(order, true)
 
 func open() -> void:
 	if _master_slider:
-		_master_slider.set_value_no_signal(CouchNav.get_bus_linear(&"Master", _master_slider.value))
+		_master_slider.set_value_no_signal(ArcadeNav.get_bus_linear(&"Master", _master_slider.value))
 	if _music_slider:
-		_music_slider.set_value_no_signal(CouchNav.get_bus_linear(&"Music", _music_slider.value))
+		_music_slider.set_value_no_signal(ArcadeNav.get_bus_linear(&"Music", _music_slider.value))
 	if _sfx_slider:
-		_sfx_slider.set_value_no_signal(CouchNav.get_bus_linear(&"SFX", _sfx_slider.value))
+		_sfx_slider.set_value_no_signal(ArcadeNav.get_bus_linear(&"SFX", _sfx_slider.value))
 	visible = true
 	get_tree().paused = true
 	if _resume_btn:
@@ -185,9 +185,9 @@ func toggle() -> void:
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
-	if CouchNav.is_back(event) or CouchNav.is_start(event):
+	if ArcadeNav.is_back(event) or ArcadeNav.is_start(event):
 		get_viewport().set_input_as_handled()
 		close()
 	elif event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_A and not event.is_action("ui_accept"):
-		if CouchNav.activate_focused(get_viewport()):
+		if ArcadeNav.activate_focused(get_viewport()):
 			get_viewport().set_input_as_handled()

@@ -1,4 +1,4 @@
-class_name CouchTouchOverlay
+class_name ArcadeTouchOverlay
 extends CanvasLayer
 
 ## Gemeinsames Multi-Touch-Overlay für Tablets & WASM-Browser (Desktop standardmäßig aus).

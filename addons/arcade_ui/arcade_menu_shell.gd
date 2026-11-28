@@ -1,4 +1,4 @@
-class_name CouchMenuShell
+class_name ArcadeMenuShell
 extends Control
 
 ## Einheitliche Hauptmenü- & Untermenü-Shell im ClanBomber-Stil für Couch-Multiplayer-Spiele.
@@ -44,9 +44,9 @@ var _back_btns: Dictionary = {}
 var _page_first_focus: Dictionary = {}
 
 func _init(game_title: String = "COUCH GAME", subtitle_text: String = "") -> void:
-	name = "CouchMenuShell"
+	name = "ArcadeMenuShell"
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	theme = CouchTheme.build()
+	theme = ArcadeTheme.build()
 	_build_shell(game_title, subtitle_text)
 
 func _build_shell(game_title: String, subtitle_text: String) -> void:
@@ -226,17 +226,47 @@ func wire_subpage_focus(page: Page, controls: Array) -> void:
 		all_ctrls.append(back_btn)
 	if not all_ctrls.is_empty():
 		_page_first_focus[page] = all_ctrls[0]
-	call_deferred("_apply_vertical_focus", all_ctrls)
+	_apply_vertical_focus(all_ctrls)
 
 func _apply_vertical_focus(all_ctrls: Array) -> void:
-	CouchNav.wire_vertical_focus(all_ctrls, true)
+	ArcadeNav.wire_vertical_focus(all_ctrls, true)
 
 func _refresh_main_focus() -> void:
 	var visible_btns: Array = []
 	for b in _main_btns:
 		if b.visible:
 			visible_btns.append(b)
-	call_deferred("_apply_vertical_focus", visible_btns)
+	_apply_vertical_focus(visible_btns)
+
+## Konfiguriert das Menü für Singleplayer- oder benutzerdefinierte Modi (blendet ungenutzte Tabs aus und passt Labels an).
+func set_singleplayer_mode(enabled: bool, arena_label: String = "🏟️ LEVEL / MODUS", match_label: String = "⚙️ OPTIONEN", extra_label: String = "📊 HIGHSCORES") -> void:
+	configure_profile({
+		"show_players": not enabled,
+		"arena_label": arena_label if enabled else "🏟️ ARENA",
+		"match_label": match_label if enabled else "🏆 MATCH & REGELN",
+		"extra_label": extra_label if enabled else "📊 BESTENLISTE",
+		"show_extra": enabled
+	})
+
+func configure_profile(opts: Dictionary) -> void:
+	if _players_btn and opts.has("show_players"):
+		_players_btn.visible = bool(opts["show_players"])
+	if _arena_btn:
+		if opts.has("show_arena"):
+			_arena_btn.visible = bool(opts["show_arena"])
+		if opts.has("arena_label"):
+			_arena_btn.text = str(opts["arena_label"])
+	if _match_btn:
+		if opts.has("show_match"):
+			_match_btn.visible = bool(opts["show_match"])
+		if opts.has("match_label"):
+			_match_btn.text = str(opts["match_label"])
+	if _extra_btn:
+		if opts.has("show_extra"):
+			_extra_btn.visible = bool(opts["show_extra"])
+		if opts.has("extra_label"):
+			_extra_btn.text = str(opts["extra_label"])
+	_refresh_main_focus()
 
 func show_page(page: Page) -> void:
 	current_page = page
@@ -244,11 +274,11 @@ func show_page(page: Page) -> void:
 		_pages[p].visible = (p == page)
 	if page == Page.SETTINGS:
 		if _master_slider:
-			_master_slider.set_value_no_signal(CouchNav.get_bus_linear(&"Master", _master_slider.value))
+			_master_slider.set_value_no_signal(ArcadeNav.get_bus_linear(&"Master", _master_slider.value))
 		if _music_slider:
-			_music_slider.set_value_no_signal(CouchNav.get_bus_linear(&"Music", _music_slider.value))
+			_music_slider.set_value_no_signal(ArcadeNav.get_bus_linear(&"Music", _music_slider.value))
 		if _sfx_slider:
-			_sfx_slider.set_value_no_signal(CouchNav.get_bus_linear(&"SFX", _sfx_slider.value))
+			_sfx_slider.set_value_no_signal(ArcadeNav.get_bus_linear(&"SFX", _sfx_slider.value))
 	if page == Page.MAIN:
 		back_to_main.emit()
 		if is_instance_valid(_start_btn):
@@ -261,14 +291,14 @@ func show_page(page: Page) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
 		return
-	if current_page != Page.MAIN and CouchNav.is_back(event):
+	if current_page != Page.MAIN and ArcadeNav.is_back(event):
 		get_viewport().set_input_as_handled()
 		show_page(Page.MAIN)
 		return
-	if current_page == Page.MAIN and CouchNav.is_start(event) and not (event is InputEventKey and event.keycode == KEY_ESCAPE):
+	if current_page == Page.MAIN and ArcadeNav.is_start(event) and not (event is InputEventKey and event.keycode == KEY_ESCAPE):
 		get_viewport().set_input_as_handled()
 		start_requested.emit()
 		return
 	if event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_A and not event.is_action("ui_accept"):
-		if CouchNav.activate_focused(get_viewport()):
+		if ArcadeNav.activate_focused(get_viewport()):
 			get_viewport().set_input_as_handled()

@@ -1,4 +1,4 @@
-class_name CouchDefaults
+class_name ArcadeDefaults
 extends RefCounted
 
 ## Smarte Controller- und Spieler-Defaults für Couch-Multiplayer-Spiele.

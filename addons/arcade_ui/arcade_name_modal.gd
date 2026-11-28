@@ -1,4 +1,4 @@
-class_name CouchNameModal
+class_name ArcadeNameModal
 extends Control
 
 ## Couch-taugliche Namenseingabe (Gamepad D-Pad + A, Touch, Maus & Tastatur).
@@ -20,11 +20,11 @@ var _key_btns: Array[Button] = []
 var _cancel_btn: Button
 
 func _init() -> void:
-	name = "CouchNameModal"
+	name = "ArcadeNameModal"
 	visible = false
 	z_index = 200
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	theme = CouchTheme.build()
+	theme = ArcadeTheme.build()
 	_build_ui()
 
 func _build_ui() -> void:
@@ -162,12 +162,12 @@ func open(slot_idx: int, current_name: String, recent_names: Array = []) -> void
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
-	if CouchNav.is_back(event):
+	if ArcadeNav.is_back(event):
 		get_viewport().set_input_as_handled()
 		visible = false
 		cancelled.emit()
 	elif event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_A and not event.is_action("ui_accept"):
-		if CouchNav.activate_focused(get_viewport()):
+		if ArcadeNav.activate_focused(get_viewport()):
 			get_viewport().set_input_as_handled()
 	elif event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_START:
 		get_viewport().set_input_as_handled()
