@@ -244,6 +244,7 @@ func _make_subpage(parent: VBoxContainer, page: Page, header_text: String) -> VB
 	_page_headers.append(hdr)
 
 	var scroll := ScrollContainer.new()
+	scroll.follow_focus = true
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED

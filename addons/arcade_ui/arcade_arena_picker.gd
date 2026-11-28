@@ -54,6 +54,7 @@ func _init() -> void:
 	add_child(_split_box)
 
 	_list_scroll = ScrollContainer.new()
+	_list_scroll.follow_focus = true
 	_list_scroll.custom_minimum_size = Vector2(320, 210)
 	_list_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
