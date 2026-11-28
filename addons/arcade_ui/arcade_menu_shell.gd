@@ -1,6 +1,9 @@
 class_name ArcadeMenuShell
 extends Control
 
+const ArcadeTheme = preload("res://addons/arcade_ui/arcade_theme.gd")
+const ArcadeNav = preload("res://addons/arcade_ui/arcade_nav.gd")
+
 ## Einheitliche Hauptmenü- & Untermenü-Shell im ClanBomber-Stil für Couch-Multiplayer-Spiele.
 ## Bietet MAIN + Untermenüs (PLAYERS, ARENA, MATCH, SETTINGS, EXTRA) mit Gamepad-Focus & Touch-Support.
 

@@ -1,6 +1,9 @@
 class_name ArcadePauseOverlay
 extends Control
 
+const ArcadeTheme = preload("res://addons/arcade_ui/arcade_theme.gd")
+const ArcadeNav = preload("res://addons/arcade_ui/arcade_nav.gd")
+
 ## Einheitliches Pause- & Audio-Overlay für Couch-Multiplayer-Spiele (Gamepad + Tastatur + Touch).
 
 signal resumed

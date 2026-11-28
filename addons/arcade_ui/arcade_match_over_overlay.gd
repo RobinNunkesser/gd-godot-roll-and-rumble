@@ -1,6 +1,9 @@
 class_name ArcadeMatchOverOverlay
 extends Control
 
+const ArcadeTheme = preload("res://addons/arcade_ui/arcade_theme.gd")
+const ArcadeNav = preload("res://addons/arcade_ui/arcade_nav.gd")
+
 ## Einheitlicher Match-/Cup-Abschluss-Screen für Couch-Multiplayer-Spiele (Gamepad + Touch + Maus).
 
 signal rematch_pressed

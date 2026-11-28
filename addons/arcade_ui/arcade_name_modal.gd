@@ -1,6 +1,9 @@
 class_name ArcadeNameModal
 extends Control
 
+const ArcadeTheme = preload("res://addons/arcade_ui/arcade_theme.gd")
+const ArcadeNav = preload("res://addons/arcade_ui/arcade_nav.gd")
+
 ## Couch-taugliche Namenseingabe (Gamepad D-Pad + A, Touch, Maus & Tastatur).
 
 signal name_confirmed(slot_index: int, new_name: String)
