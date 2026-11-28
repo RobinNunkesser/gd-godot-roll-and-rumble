@@ -300,13 +300,8 @@ func _handle_input(_delta: float) -> void:
 			
 		ControlType.GAMEPAD_0, ControlType.GAMEPAD_1, ControlType.GAMEPAD_2, ControlType.GAMEPAD_3:
 			var dev = int(control_type) - int(ControlType.GAMEPAD_0)
-			var raw_x = Input.get_joy_axis(dev, JOY_AXIS_LEFT_X)
-			var raw_y = Input.get_joy_axis(dev, JOY_AXIS_LEFT_Y)
-			if absf(raw_x) > 0.2:
-				input_vec.x = raw_x
-			if absf(raw_y) > 0.2:
-				input_vec.y = raw_y
-			boost_pressed = Input.is_joy_button_pressed(dev, JOY_BUTTON_A) or Input.is_joy_button_pressed(dev, JOY_BUTTON_RIGHT_SHOULDER)
+			input_vec = PlayerInputSlot.get_move_for_device(PlayerInputSlot.DeviceType.JOYPAD, dev)
+			boost_pressed = PlayerInputSlot.is_action_for_device(PlayerInputSlot.DeviceType.JOYPAD, dev, "boost")
 	
 	if input_vec.length_squared() > 0.01:
 		input_vec = input_vec.normalized()
