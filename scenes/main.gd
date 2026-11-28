@@ -10,6 +10,7 @@ const BaseArena = preload("res://scripts/arenas/base_arena.gd")
 const PureRingArena = preload("res://scripts/arenas/pure_ring.gd")
 const ClassicRingArena = preload("res://scripts/arenas/classic_ring.gd")
 const DizzySpinnerArena = preload("res://scripts/arenas/dizzy_spinner.gd")
+const ArcadeArenaPicker = preload("res://addons/arcade_ui/arcade_arena_picker.gd")
 const WobblySeesawArena = preload("res://scripts/arenas/wobbly_seesaw.gd")
 const BumperPinballArena = preload("res://scripts/arenas/bumper_pinball.gd")
 const IceSlickArena = preload("res://scripts/arenas/ice_slick.gd")
@@ -34,6 +35,7 @@ var state_manager: RollStateManager
 var leaderboard: LeaderboardManager
 var current_arena: BaseArena
 var selected_arena_type: BaseArena.ArenaType = BaseArena.ArenaType.PURE_RING
+var arena_pool: Array[int] = [0, 1, 2, 3, 4, 5]
 var sound_manager: RollSoundManager
 var impact_particles: RollImpactParticles
 var powerup_spawner: PowerUpSpawner
@@ -57,7 +59,7 @@ var player_names: Array[String] = ["P1", "P2", "P3", "P4"]
 var couch_lb: ArcadeLeaderboard
 var ui_name_modal: ArcadeNameModal
 var ui_lb_table_lbl: Label
-var ui_arena_btn: Button
+var ui_arena_picker: ArcadeArenaPicker
 var ui_lobby_start_btn: Button
 var ui_arena_card: Panel
 var ui_arena_title_label: Label
@@ -315,26 +317,35 @@ func _build_ui() -> void:
 		ui_slot_btns.append(card.ctrl_btn)
 
 	# Subpage: ARENA
-	ui_arena_title_label = Label.new()
-	ui_arena_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ui_arena_title_label.add_theme_font_size_override("font_size", 26)
-	ui_arena_title_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
-	shell.arena_box.add_child(ui_arena_title_label)
-
-	ui_arena_desc_label = Label.new()
-	ui_arena_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ui_arena_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	ui_arena_desc_label.add_theme_font_size_override("font_size", 17)
-	ui_arena_desc_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
-	shell.arena_box.add_child(ui_arena_desc_label)
-
-	ui_arena_btn = Button.new()
-	ui_arena_btn.text = "ARENA WECHSELN"
-	ui_arena_btn.custom_minimum_size = Vector2(320, 48)
-	ui_arena_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	ui_arena_btn.pressed.connect(cycle_arena)
-	shell.arena_box.add_child(ui_arena_btn)
-	shell.wire_subpage_focus(ArcadeMenuShell.Page.ARENA, [ui_arena_btn])
+	ui_arena_picker = ArcadeArenaPicker.new()
+	ui_arena_picker.min_enabled = 1
+	var rr_items: Array[Dictionary] = [
+		{"id": str(BaseArena.ArenaType.PURE_RING), "title": "PURE RING", "subtitle": "Klassischer runder Sumo-Ring ohne Hindernisse", "tags": ["Klassik"], "enabled": true},
+		{"id": str(BaseArena.ArenaType.CLASSIC_RING), "title": "CLASSIC RING", "subtitle": "Standard-Arena mit Säulen & Fallen", "tags": ["Klassik", "Fallen"], "enabled": true},
+		{"id": str(BaseArena.ArenaType.DIZZY_SPINNER), "title": "DIZZY SPINNER", "subtitle": "Rotierende Plattformen drehen das Feld", "tags": ["Drehung"], "enabled": true},
+		{"id": str(BaseArena.ArenaType.WOBBLY_SEESAW), "title": "WOBBLY SEESAW", "subtitle": "Wippender Untergrund fordert Balance", "tags": ["Balance"], "enabled": true},
+		{"id": str(BaseArena.ArenaType.BUMPER_PINBALL), "title": "BUMPER PINBALL", "subtitle": "Flipper-Bumper schleudern Kugeln zurück", "tags": ["Flipper"], "enabled": true},
+		{"id": str(BaseArena.ArenaType.ICE_SLICK), "title": "ICE SLICK", "subtitle": "Rutschige Eisfläche mit wenig Grip", "tags": ["Eis"], "enabled": true},
+	]
+	ui_arena_picker.set_arenas(rr_items)
+	ui_arena_picker.arena_focused.connect(func(aid: String) -> void:
+		selected_arena_type = int(aid) as BaseArena.ArenaType
+		_load_arena(selected_arena_type)
+	)
+	ui_arena_picker.pool_changed.connect(func(ids: Array[String]) -> void:
+		arena_pool.clear()
+		for s in ids:
+			arena_pool.append(int(s))
+		if arena_pool.is_empty():
+			arena_pool = [0]
+		if not arena_pool.has(int(selected_arena_type)):
+			selected_arena_type = arena_pool[0] as BaseArena.ArenaType
+			_load_arena(selected_arena_type)
+		else:
+			_update_menu_summary()
+	)
+	shell.arena_box.add_child(ui_arena_picker)
+	shell.wire_arena_picker(ui_arena_picker, ArcadeMenuShell.Page.ARENA)
 
 	# Subpage: MATCH & REGELN
 	ui_mode_label = Label.new()
@@ -667,8 +678,12 @@ func _unhandled_input(event: InputEvent) -> void:
 				toggle_p2_bot()
 
 func cycle_arena() -> void:
-	var total_types = BaseArena.ArenaType.values().size()
-	selected_arena_type = ((int(selected_arena_type) + 1) % total_types) as BaseArena.ArenaType
+	if arena_pool.is_empty():
+		var total_types = BaseArena.ArenaType.values().size()
+		selected_arena_type = ((int(selected_arena_type) + 1) % total_types) as BaseArena.ArenaType
+	else:
+		var pos := arena_pool.find(int(selected_arena_type))
+		selected_arena_type = arena_pool[(pos + 1) % arena_pool.size()] as BaseArena.ArenaType
 	_load_arena(selected_arena_type)
 	_update_arena_ui()
 	_update_menu_summary()
@@ -754,9 +769,7 @@ func _load_arena(type: BaseArena.ArenaType) -> void:
 				players[i].freeze = true
 
 func _update_arena_ui() -> void:
-	if current_arena and ui_arena_title_label and ui_arena_desc_label:
-		ui_arena_title_label.text = "★ ARENA: ◄ %s ► ★   [Taste T oder A zum Wechseln]" % current_arena.arena_name
-		ui_arena_desc_label.text = current_arena.arena_description
+	pass
 
 func start_match_from_lobby() -> void:
 	var active_ids = _get_active_player_ids()
