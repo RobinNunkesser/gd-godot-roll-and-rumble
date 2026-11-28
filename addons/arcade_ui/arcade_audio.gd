@@ -14,6 +14,7 @@ var _streams: Dictionary = {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	ensure_buses()
 	_sfx_player = AudioStreamPlayer.new()
 	_sfx_player.bus = _resolve_bus(&"SFX")
 	add_child(_sfx_player)
@@ -31,6 +32,14 @@ func _ready() -> void:
 		var path := "%s%s.ogg" % [AUDIO_BASE, key]
 		if ResourceLoader.exists(path):
 			_streams[key] = load(path)
+
+static func ensure_buses() -> void:
+	for bus_name in [&"Music", &"SFX"]:
+		if AudioServer.get_bus_index(bus_name) < 0:
+			var idx := AudioServer.bus_count
+			AudioServer.add_bus(idx)
+			AudioServer.set_bus_name(idx, bus_name)
+			AudioServer.set_bus_send(idx, &"Master")
 
 static func _resolve_bus(preferred: StringName) -> StringName:
 	return preferred if AudioServer.get_bus_index(preferred) >= 0 else &"Master"

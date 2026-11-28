@@ -213,6 +213,7 @@ func _make_subpage(parent: VBoxContainer, page: Page, header_text: String) -> VB
 	return content
 
 func _build_default_settings() -> void:
+	ArcadeAudio.ensure_buses()
 	_master_slider = _make_slider_row(settings_box, "Master", 1.0, func(v: float) -> void:
 		_set_bus_linear(&"Master", v)
 		master_volume_changed.emit(v)
@@ -223,6 +224,8 @@ func _build_default_settings() -> void:
 	)
 	_sfx_slider = _make_slider_row(settings_box, "SFX", 1.0, func(v: float) -> void:
 		_set_bus_linear(&"SFX", v)
+		if _focus_sfx_ready and audio:
+			audio.play_sfx("move")
 		sfx_volume_changed.emit(v)
 	)
 
