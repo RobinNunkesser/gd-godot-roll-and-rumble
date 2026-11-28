@@ -269,7 +269,9 @@ func _build_ui() -> void:
 	ui_hud_container.add_child(in_game_hint)
 	
 	# --- Pre-Match Hauptmenü (ClanBomber-Stil via ArcadeMenuShell) ---
-	var shell := ArcadeMenuShell.new("ROLL & RUMBLE 3D", "3D Physics Bumper Sumo Party")
+	var shell := ArcadeMenuShell.new("ROLL & RUMBLE 3D")
+	shell.auto_lobby_music = false
+	shell.apply_theme_preset(ArcadeTheme.Preset.RETRO_GOLD)
 	shell.start_requested.connect(start_match_from_lobby)
 	shell.master_volume_changed.connect(func(v: float) -> void:
 		if sound_manager:
@@ -367,12 +369,18 @@ func _build_ui() -> void:
 	shell.wire_subpage_focus(ArcadeMenuShell.Page.MATCH, [ui_mode_toggle_btn, ui_powerup_toggle_btn])
 
 	# Subpage: EXTRA (Bestenliste)
-	shell.enable_extra_page("🏆 BESTENLISTE")
-	ui_lb_table_lbl = Label.new()
-	ui_lb_table_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ui_lb_table_lbl.add_theme_font_size_override("font_size", 16)
-	ui_lb_table_lbl.text = couch_lb.format_table("KOs")
-	shell.extra_box.add_child(ui_lb_table_lbl)
+	shell.enable_extra_page("BESTENLISTE")
+	var lb_scroll := ScrollContainer.new()
+	lb_scroll.custom_minimum_size = Vector2(680, 220)
+	lb_scroll.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	lb_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	shell.extra_box.add_child(lb_scroll)
+	var lb_box := VBoxContainer.new()
+	lb_box.name = "LbBox"
+	lb_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lb_box.add_theme_constant_override("separation", 6)
+	lb_scroll.add_child(lb_box)
+	couch_lb.populate_view(lb_box, "KOs")
 
 	var lb_row := HBoxContainer.new()
 	lb_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -390,7 +398,7 @@ func _build_ui() -> void:
 	lb_reset_btn.custom_minimum_size = Vector2(220, 42)
 	lb_reset_btn.pressed.connect(func() -> void:
 		couch_lb.reset_all()
-		ui_lb_table_lbl.text = couch_lb.format_table("KOs")
+		couch_lb.populate_view(lb_box, "KOs")
 	)
 	lb_row.add_child(lb_reset_btn)
 	ArcadeNav.wire_row_focus([ui_leaderboard_btn, lb_reset_btn], true)
@@ -958,8 +966,9 @@ func _on_tournament_finished(champion_id: int) -> void:
 			winners_h.append(winner_name)
 		var is_cup := state_manager != null and state_manager.current_match_mode != RollStateManager.MatchMode.SINGLE_MATCH
 		couch_lb.record_match(active_h, winners_h, is_cup)
-		if ui_lb_table_lbl:
-			ui_lb_table_lbl.text = couch_lb.format_table("KOs")
+		var lb_box_node := ui_lobby_panel.find_child("LbBox", true, false) as VBoxContainer if ui_lobby_panel else null
+		if lb_box_node:
+			couch_lb.populate_view(lb_box_node, "KOs")
 	var winner_txt := "👑 CHAMPION: %s! 👑" % winner_name if winner_name != "" else "🤝 UNENTSCHIEDEN! 🤝"
 	ui_status_label.text = winner_txt
 	ui_status_label.visible = false
