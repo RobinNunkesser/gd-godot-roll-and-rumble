@@ -45,13 +45,26 @@ static func build(accent: Color = Color(1.0, 0.78, 0.2)) -> Theme:
 
 	var slider_bg := StyleBoxFlat.new()
 	slider_bg.bg_color = Color(0.18, 0.22, 0.34, 0.95)
-	slider_bg.set_corner_radius_all(4)
-	slider_bg.set_content_margin_all(4)
+	slider_bg.set_corner_radius_all(5)
+	slider_bg.set_content_margin_all(5)
 	var slider_fill := StyleBoxFlat.new()
-	slider_fill.bg_color = accent
-	slider_fill.set_corner_radius_all(4)
+	slider_fill.bg_color = Color(0.55, 0.68, 0.92, 0.95)
+	slider_fill.set_corner_radius_all(5)
+	var slider_fill_hi := StyleBoxFlat.new()
+	slider_fill_hi.bg_color = accent
+	slider_fill_hi.set_corner_radius_all(5)
 	theme.set_stylebox("slider", "HSlider", slider_bg)
 	theme.set_stylebox("grabber_area", "HSlider", slider_fill)
-	theme.set_stylebox("grabber_area_highlight", "HSlider", slider_fill)
+	theme.set_stylebox("grabber_area_highlight", "HSlider", slider_fill_hi)
+	theme.set_icon("grabber", "HSlider", _make_grabber_icon(Color(0.85, 0.90, 1.0), Color(0.25, 0.32, 0.48)))
+	theme.set_icon("grabber_highlight", "HSlider", _make_grabber_icon(accent, Color.WHITE))
 
 	return theme
+
+static func _make_grabber_icon(fill: Color, border: Color) -> ImageTexture:
+	var img := Image.create(16, 22, false, Image.FORMAT_RGBA8)
+	for y in range(22):
+		for x in range(16):
+			var edge := (x <= 1 or x >= 14 or y <= 1 or y >= 20)
+			img.set_pixel(x, y, border if edge else fill)
+	return ImageTexture.create_from_image(img)

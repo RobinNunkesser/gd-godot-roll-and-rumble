@@ -15,3 +15,9 @@ static func detect_slot_modes(slot_count: int = 4) -> Array[Dictionary]:
 		else:
 			result.append({"kind": "bot", "device": -1})
 	return result
+
+static func apply_fullscreen() -> void:
+	if DisplayServer.get_name() == "headless" or OS.has_feature("embedded"):
+		return
+	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_WINDOWED:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)

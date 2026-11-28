@@ -3,6 +3,7 @@ extends Control
 
 const ArcadeTheme = preload("res://addons/arcade_ui/arcade_theme.gd")
 const ArcadeNav = preload("res://addons/arcade_ui/arcade_nav.gd")
+const ArcadeDefaults = preload("res://addons/arcade_ui/arcade_defaults.gd")
 
 ## Einheitliche Hauptmenü- & Untermenü-Shell im ClanBomber-Stil für Couch-Multiplayer-Spiele.
 ## Bietet MAIN + Untermenüs (PLAYERS, ARENA, MATCH, SETTINGS, EXTRA) mit Gamepad-Focus & Touch-Support.
@@ -17,6 +18,7 @@ signal sfx_volume_changed(linear: float)
 signal touch_toggled
 
 var current_page: Page = Page.MAIN
+var auto_fullscreen: bool = true
 
 var _title_lbl: Label
 var _subtitle_lbl: Label
@@ -51,6 +53,12 @@ func _init(game_title: String = "COUCH GAME", subtitle_text: String = "") -> voi
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	theme = ArcadeTheme.build()
 	_build_shell(game_title, subtitle_text)
+
+func _ready() -> void:
+	if auto_fullscreen:
+		ArcadeDefaults.apply_fullscreen()
+		if _fs_btn:
+			_fs_btn.text = "Vollbild: AN" if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN else "Vollbild: AUS"
 
 func _build_shell(game_title: String, subtitle_text: String) -> void:
 	var backdrop := ColorRect.new()
@@ -187,15 +195,29 @@ func _build_default_settings() -> void:
 	wire_subpage_focus(Page.SETTINGS, [_master_slider, _music_slider, _sfx_slider, _fs_btn, _touch_btn])
 
 func _make_slider_row(parent: VBoxContainer, label_text: String, initial: float, cb: Callable) -> HSlider:
+	var row_box := PanelContainer.new()
+	row_box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var sb_idle := StyleBoxFlat.new()
+	sb_idle.bg_color = Color(0.10, 0.13, 0.21, 0.72)
+	sb_idle.border_color = Color(0.24, 0.30, 0.45, 0.65)
+	sb_idle.set_border_width_all(2)
+	sb_idle.set_corner_radius_all(8)
+	sb_idle.set_content_margin_all(8)
+	var sb_focus := sb_idle.duplicate()
+	sb_focus.bg_color = Color(0.17, 0.22, 0.35, 0.96)
+	sb_focus.border_color = Color(1.0, 0.78, 0.2)
+	sb_focus.set_border_width_all(3)
+	row_box.add_theme_stylebox_override("panel", sb_idle)
+	parent.add_child(row_box)
+
 	var row := HBoxContainer.new()
 	row.custom_minimum_size = Vector2(460, 34)
-	row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	row.add_theme_constant_override("separation", 12)
-	parent.add_child(row)
+	row_box.add_child(row)
 
 	var lbl := Label.new()
 	lbl.text = label_text
-	lbl.custom_minimum_size = Vector2(100, 0)
+	lbl.custom_minimum_size = Vector2(120, 0)
 	lbl.add_theme_font_size_override("font_size", 16)
 	row.add_child(lbl)
 
@@ -205,8 +227,19 @@ func _make_slider_row(parent: VBoxContainer, label_text: String, initial: float,
 	slider.step = 0.05
 	slider.value = initial
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	slider.focus_mode = Control.FOCUS_ALL
 	slider.value_changed.connect(cb)
+	slider.focus_entered.connect(func() -> void:
+		row_box.add_theme_stylebox_override("panel", sb_focus)
+		lbl.text = "▶ " + label_text
+		lbl.add_theme_color_override("font_color", Color(1.0, 0.82, 0.28))
+	)
+	slider.focus_exited.connect(func() -> void:
+		row_box.add_theme_stylebox_override("panel", sb_idle)
+		lbl.text = label_text
+		lbl.remove_theme_color_override("font_color")
+	)
 	row.add_child(slider)
 	return slider
 
@@ -230,6 +263,11 @@ func wire_subpage_focus(page: Page, controls: Array) -> void:
 	if not all_ctrls.is_empty():
 		_page_first_focus[page] = all_ctrls[0]
 	_apply_vertical_focus(all_ctrls)
+
+func wire_players_cards(cards: Array) -> void:
+	var first := ArcadeNav.wire_player_cards(cards, _back_btns.get(Page.PLAYERS))
+	if is_instance_valid(first):
+		_page_first_focus[Page.PLAYERS] = first
 
 func _apply_vertical_focus(all_ctrls: Array) -> void:
 	ArcadeNav.wire_vertical_focus(all_ctrls, true)

@@ -72,6 +72,38 @@ static func wire_row_focus(controls: Array, wrap: bool = true) -> void:
 		elif wrap and n > 1:
 			valid[i].focus_neighbor_right = valid[i].get_path_to(valid[0])
 
+static func wire_player_cards(cards: Array, back_btn: Control = null) -> Control:
+	var card_cols: Array[Array] = []
+	for card in cards:
+		if is_instance_valid(card) and card.has_method("get_focus_controls"):
+			var ctrls: Array = card.get_focus_controls()
+			if not ctrls.is_empty():
+				card_cols.append(ctrls)
+	if card_cols.is_empty():
+		return null
+
+	var num_cards := card_cols.size()
+	var rows := card_cols[0].size()
+	for r in range(rows):
+		var row_ctrls: Array = []
+		for c in range(num_cards):
+			if r < card_cols[c].size():
+				row_ctrls.append(card_cols[c][r])
+		wire_row_focus(row_ctrls, true)
+
+	for c in range(num_cards):
+		var col: Array = card_cols[c].duplicate()
+		if is_instance_valid(back_btn):
+			col.append(back_btn)
+		wire_vertical_focus(col, true)
+
+	if is_instance_valid(back_btn):
+		back_btn.focus_mode = Control.FOCUS_ALL
+		var first_col: Array = card_cols[0]
+		back_btn.focus_neighbor_top = back_btn.get_path_to(first_col[first_col.size() - 1])
+		back_btn.focus_neighbor_bottom = back_btn.get_path_to(first_col[0])
+	return card_cols[0][card_cols[0].size() - 1]
+
 static func activate_focused(vp: Viewport) -> bool:
 	if vp == null:
 		return false

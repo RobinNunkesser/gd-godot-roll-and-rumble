@@ -20,6 +20,8 @@ func _init(idx: int = 0, border_color: Color = Color(0.2, 0.45, 0.7, 0.8), with_
 	slot_index = idx
 	show_team_button = with_team
 	name = "SlotCard%d" % idx
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	custom_minimum_size = Vector2(205, 0)
 
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.08, 0.12, 0.20, 0.94)
@@ -92,6 +94,8 @@ func set_team_text(text: String) -> void:
 
 func get_focus_controls() -> Array[Control]:
 	var out: Array[Control] = []
+	if is_instance_valid(name_btn):
+		out.append(name_btn)
 	if show_team_button and is_instance_valid(team_btn):
 		out.append(team_btn)
 	if is_instance_valid(ctrl_btn):
