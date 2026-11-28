@@ -159,6 +159,9 @@ func open(slot_idx: int, current_name: String, recent_names: Array = []) -> void
 		shown += 1
 	visible = true
 	move_to_front()
+	for ch in get_children():
+		if ch is CenterContainer and ch.get_child_count() > 0:
+			ArcadeNav.pop_in(ch.get_child(0) as Control)
 	if not _key_btns.is_empty():
 		_key_btns[0].call_deferred("grab_focus")
 

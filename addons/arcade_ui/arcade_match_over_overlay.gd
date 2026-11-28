@@ -91,6 +91,9 @@ func open(winner_text: String, score_text: String = "", rematch_text: String = "
 	if rematch_btn:
 		rematch_btn.text = rematch_text
 	visible = true
+	for ch in get_children():
+		if ch is CenterContainer and ch.get_child_count() > 0:
+			ArcadeNav.pop_in(ch.get_child(0) as Control)
 	if rematch_btn:
 		rematch_btn.call_deferred("grab_focus")
 

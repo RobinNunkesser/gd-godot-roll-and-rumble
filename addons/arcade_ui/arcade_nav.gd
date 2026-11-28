@@ -120,3 +120,44 @@ static func get_bus_linear(bus_name: StringName, fallback: float = 1.0) -> float
 	if AudioServer.is_bus_mute(idx):
 		return 0.0
 	return clampf(db_to_linear(AudioServer.get_bus_volume_db(idx)), 0.0, 1.0)
+
+static func pop_in(ctrl: Control, duration: float = 0.16) -> void:
+	if not is_instance_valid(ctrl):
+		return
+	if DisplayServer.get_name() == "headless" or not ctrl.is_inside_tree():
+		ctrl.modulate.a = 1.0
+		ctrl.scale = Vector2.ONE
+		return
+	ctrl.pivot_offset = ctrl.size * 0.5
+	ctrl.modulate.a = 0.0
+	ctrl.scale = Vector2(0.94, 0.94)
+	var tw := ctrl.create_tween().set_parallel(true).set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tw.tween_property(ctrl, "modulate:a", 1.0, duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(ctrl, "scale", Vector2.ONE, duration).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+static func attach_button_juice(btn: BaseButton) -> void:
+	if not is_instance_valid(btn) or btn.get_meta("_arcade_juice", false):
+		return
+	btn.set_meta("_arcade_juice", true)
+	btn.focus_entered.connect(func() -> void:
+		if DisplayServer.get_name() == "headless" or not btn.is_inside_tree():
+			return
+		btn.pivot_offset = btn.size * 0.5
+		var tw := btn.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		tw.tween_property(btn, "scale", Vector2(1.03, 1.03), 0.10).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	)
+	btn.focus_exited.connect(func() -> void:
+		if DisplayServer.get_name() == "headless" or not btn.is_inside_tree():
+			return
+		btn.pivot_offset = btn.size * 0.5
+		var tw := btn.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		tw.tween_property(btn, "scale", Vector2.ONE, 0.08)
+	)
+	btn.pressed.connect(func() -> void:
+		if DisplayServer.get_name() == "headless" or not btn.is_inside_tree():
+			return
+		btn.pivot_offset = btn.size * 0.5
+		btn.scale = Vector2(0.96, 0.96)
+		var tw := btn.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		tw.tween_property(btn, "scale", Vector2(1.03, 1.03) if btn.has_focus() else Vector2.ONE, 0.10).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	)

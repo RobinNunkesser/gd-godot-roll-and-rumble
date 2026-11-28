@@ -171,6 +171,9 @@ func open() -> void:
 		_sfx_slider.set_value_no_signal(ArcadeNav.get_bus_linear(&"SFX", _sfx_slider.value))
 	visible = true
 	get_tree().paused = true
+	for ch in get_children():
+		if ch is CenterContainer and ch.get_child_count() > 0:
+			ArcadeNav.pop_in(ch.get_child(0) as Control)
 	if _resume_btn:
 		_resume_btn.call_deferred("grab_focus")
 

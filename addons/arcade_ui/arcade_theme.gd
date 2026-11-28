@@ -3,6 +3,37 @@ extends RefCounted
 
 ## Einheitliches Arcade-Dark-Theme mit klarem Gamepad-Focus-Rahmen für Couch-Multiplayer-Menüs.
 
+enum Preset { RETRO_GOLD, CYBER_CYAN, NEON_GREEN, SPORTS_BLUE, CRIMSON }
+
+static func preset_accent(preset: Preset) -> Color:
+	match preset:
+		Preset.CYBER_CYAN:
+			return Color(0.18, 0.90, 1.0)
+		Preset.NEON_GREEN:
+			return Color(0.32, 0.95, 0.48)
+		Preset.SPORTS_BLUE:
+			return Color(0.35, 0.68, 1.0)
+		Preset.CRIMSON:
+			return Color(1.0, 0.34, 0.38)
+		_:
+			return Color(1.0, 0.78, 0.2)
+
+static func preset_name(preset: Preset) -> String:
+	match preset:
+		Preset.CYBER_CYAN:
+			return "CYBER CYAN"
+		Preset.NEON_GREEN:
+			return "NEON GREEN"
+		Preset.SPORTS_BLUE:
+			return "SPORTS BLUE"
+		Preset.CRIMSON:
+			return "CRIMSON"
+		_:
+			return "RETRO GOLD"
+
+static func build_preset(preset: Preset) -> Theme:
+	return build(preset_accent(preset))
+
 static func build(accent: Color = Color(1.0, 0.78, 0.2)) -> Theme:
 	var theme := Theme.new()
 
@@ -21,6 +52,8 @@ static func build(accent: Color = Color(1.0, 0.78, 0.2)) -> Theme:
 	focus.bg_color = Color(0.20, 0.25, 0.38, 1.0)
 	focus.border_color = accent
 	focus.set_border_width_all(3)
+	focus.shadow_color = Color(accent.r, accent.g, accent.b, 0.42)
+	focus.shadow_size = 8
 
 	var pressed := normal.duplicate()
 	pressed.bg_color = Color(0.08, 0.10, 0.16, 1.0)
@@ -41,6 +74,8 @@ static func build(accent: Color = Color(1.0, 0.78, 0.2)) -> Theme:
 	panel.set_border_width_all(3)
 	panel.set_corner_radius_all(14)
 	panel.set_content_margin_all(20)
+	panel.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
+	panel.shadow_size = 14
 	theme.set_stylebox("panel", "PanelContainer", panel)
 
 	var slider_bg := StyleBoxFlat.new()

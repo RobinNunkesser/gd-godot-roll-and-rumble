@@ -27,6 +27,9 @@ var _focus_sfx_ready: bool = false
 var _title_lbl: Label
 var _subtitle_lbl: Label
 var _summary_lbl: Label
+var _footer_lbl: Label
+var _backdrop: ColorRect
+var _backdrop_mat: ShaderMaterial
 
 var _pages: Dictionary = {}
 var _main_vbox: VBoxContainer
@@ -80,10 +83,29 @@ func _enable_focus_sfx() -> void:
 	_focus_sfx_ready = true
 
 func _build_shell(game_title: String, subtitle_text: String) -> void:
-	var backdrop := ColorRect.new()
-	backdrop.color = Color(0.03, 0.05, 0.10, 0.84)
-	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(backdrop)
+	_backdrop = ColorRect.new()
+	_backdrop.color = Color(0.03, 0.05, 0.10, 0.90)
+	_backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	if DisplayServer.get_name() != "headless":
+		var sh := Shader.new()
+		sh.code = """shader_type canvas_item;
+uniform vec4 accent_color : source_color = vec4(1.0, 0.78, 0.2, 1.0);
+void fragment() {
+	vec2 uv = UV;
+	vec2 p = uv * vec2(16.0, 9.0) + vec2(TIME * 0.18, TIME * 0.12);
+	vec2 g = abs(fract(p - 0.5) - 0.5) / fwidth(p);
+	float line = 1.0 - min(min(g.x, g.y), 1.0);
+	float scan = 0.94 + 0.06 * sin(uv.y * 260.0);
+	float dist = length(uv - vec2(0.5));
+	float vig = smoothstep(0.95, 0.2, dist);
+	vec3 base = vec3(0.03, 0.045, 0.095) * vig;
+	vec3 grid = accent_color.rgb * (line * 0.10 * vig);
+	COLOR = vec4((base + grid) * scan, 0.92);
+}"""
+		_backdrop_mat = ShaderMaterial.new()
+		_backdrop_mat.shader = sh
+		_backdrop.material = _backdrop_mat
+	add_child(_backdrop)
 
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -166,6 +188,12 @@ func _build_shell(game_title: String, subtitle_text: String) -> void:
 	settings_box = _make_subpage(root_vbox, Page.SETTINGS, "EINSTELLUNGEN")
 	extra_box = _make_subpage(root_vbox, Page.EXTRA, "BESTENLISTE")
 
+	_footer_lbl = Label.new()
+	_footer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_footer_lbl.add_theme_font_size_override("font_size", 13)
+	_footer_lbl.add_theme_color_override("font_color", Color(0.58, 0.68, 0.85, 0.92))
+	root_vbox.add_child(_footer_lbl)
+
 	_build_default_settings()
 	show_page(Page.MAIN)
 
@@ -175,6 +203,7 @@ func _add_main_btn(label_text: String, cb: Callable) -> Button:
 	btn.custom_minimum_size = Vector2(420, 48)
 	btn.focus_mode = Control.FOCUS_ALL
 	btn.pressed.connect(cb)
+	ArcadeNav.attach_button_juice(btn)
 	_main_vbox.add_child(btn)
 	_main_btns.append(btn)
 	return btn
@@ -208,6 +237,7 @@ func _make_subpage(parent: VBoxContainer, page: Page, header_text: String) -> VB
 		if audio: audio.play_sfx("back")
 		show_page(Page.MAIN)
 	)
+	ArcadeNav.attach_button_juice(back_btn)
 	wrap.add_child(back_btn)
 	_back_btns[page] = back_btn
 	return content
@@ -372,10 +402,27 @@ func configure_profile(opts: Dictionary) -> void:
 			_extra_btn.text = str(opts["extra_label"])
 	_refresh_main_focus()
 
+func apply_theme_preset(preset: ArcadeTheme.Preset) -> void:
+	var accent := ArcadeTheme.preset_accent(preset)
+	theme = ArcadeTheme.build(accent)
+	if _title_lbl:
+		_title_lbl.add_theme_color_override("font_color", accent.lightened(0.18))
+	if _backdrop_mat:
+		_backdrop_mat.set_shader_parameter("accent_color", accent)
+
 func show_page(page: Page) -> void:
 	current_page = page
 	for p in _pages:
 		_pages[p].visible = (p == page)
+	if _pages.has(page):
+		ArcadeNav.pop_in(_pages[page], 0.14)
+	if _footer_lbl:
+		if page == Page.MAIN:
+			_footer_lbl.text = "[A / Enter] Auswählen   •   [Start] Spiel starten   •   [D-Pad / Pfeile] Navigieren"
+		elif page == Page.SETTINGS:
+			_footer_lbl.text = "[Links / Rechts] Wert ändern   •   [B / ESC] Zurück   •   [A / Enter] Umschalten"
+		else:
+			_footer_lbl.text = "[A / Enter] Bestätigen   •   [B / ESC] Zurück   •   [D-Pad / Pfeile] Navigieren"
 	if page == Page.SETTINGS:
 		if _master_slider:
 			_master_slider.set_value_no_signal(ArcadeNav.get_bus_linear(&"Master", _master_slider.value))
