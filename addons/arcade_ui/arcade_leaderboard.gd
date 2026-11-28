@@ -120,3 +120,81 @@ func format_table(score_label: String = "Pkt", limit: int = 8) -> String:
 func reset_all() -> void:
 	data["profiles"] = {}
 	save_data()
+
+func populate_view(container: VBoxContainer, score_label: String = "Pkt", limit: int = 8) -> void:
+	for child in container.get_children():
+		child.queue_free()
+
+	var entries := get_top_entries(limit)
+	if entries.is_empty():
+		var empty_panel := PanelContainer.new()
+		var sb_empty := StyleBoxFlat.new()
+		sb_empty.bg_color = Color(0.10, 0.13, 0.22, 0.80)
+		sb_empty.border_color = Color(0.28, 0.34, 0.50, 0.65)
+		sb_empty.set_border_width_all(1)
+		sb_empty.set_corner_radius_all(8)
+		sb_empty.set_content_margin_all(18)
+		empty_panel.add_theme_stylebox_override("panel", sb_empty)
+		var empty_lbl := Label.new()
+		empty_lbl.text = "Noch keine Einträge — spielt ein Match!"
+		empty_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty_lbl.add_theme_font_size_override("font_size", 16)
+		empty_lbl.add_theme_color_override("font_color", Color(0.70, 0.78, 0.90))
+		empty_panel.add_child(empty_lbl)
+		container.add_child(empty_panel)
+		return
+
+	container.add_child(_make_table_row(["#", "SPIELER", "SIEGE", "CUPS", "SPIELE", score_label.to_upper()], true, -1))
+	for i in range(entries.size()):
+		var e := entries[i]
+		var rank_txt: String = str(["🥇", "🥈", "🥉"][i]) if i < 3 else "#%d" % (i + 1)
+		container.add_child(_make_table_row([
+			rank_txt,
+			str(e["name"]),
+			str(e["wins"]),
+			str(e["cups"]),
+			str(e["matches"]),
+			str(e["score"]),
+		], false, i))
+
+static func _make_table_row(cols: Array[String], is_header: bool, rank_idx: int) -> PanelContainer:
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	if is_header:
+		sb.bg_color = Color(0.16, 0.20, 0.33, 0.96)
+		sb.border_color = Color(1.0, 0.78, 0.2, 0.75)
+		sb.border_width_bottom = 2
+	else:
+		sb.bg_color = Color(0.09, 0.12, 0.20, 0.92) if rank_idx % 2 == 0 else Color(0.12, 0.16, 0.26, 0.92)
+		sb.border_color = Color(0.22, 0.28, 0.42, 0.45)
+		sb.border_width_bottom = 1
+	sb.set_corner_radius_all(6)
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 8 if is_header else 6
+	sb.content_margin_bottom = 8 if is_header else 6
+	panel.add_theme_stylebox_override("panel", sb)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 10)
+	panel.add_child(hbox)
+
+	var widths := [52, 0, 74, 74, 80, 96]
+	var rank_colors := [Color(1.0, 0.85, 0.25), Color(0.84, 0.88, 0.96), Color(0.90, 0.58, 0.32)]
+	for i in range(cols.size()):
+		var lbl := Label.new()
+		lbl.text = cols[i]
+		if widths[i] > 0:
+			lbl.custom_minimum_size = Vector2(widths[i], 0)
+		else:
+			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if i == 1 else (HORIZONTAL_ALIGNMENT_CENTER if i == 0 else HORIZONTAL_ALIGNMENT_RIGHT)
+		lbl.add_theme_font_size_override("font_size", 15 if is_header else 16)
+		if is_header:
+			lbl.add_theme_color_override("font_color", Color(1.0, 0.82, 0.28))
+		elif rank_idx >= 0 and rank_idx < 3 and i <= 1:
+			lbl.add_theme_color_override("font_color", rank_colors[rank_idx])
+		else:
+			lbl.add_theme_color_override("font_color", Color(0.92, 0.95, 1.0))
+		hbox.add_child(lbl)
+	return panel

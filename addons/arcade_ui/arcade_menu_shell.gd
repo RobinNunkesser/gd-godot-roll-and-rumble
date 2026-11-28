@@ -4,6 +4,7 @@ extends Control
 const ArcadeTheme = preload("res://addons/arcade_ui/arcade_theme.gd")
 const ArcadeNav = preload("res://addons/arcade_ui/arcade_nav.gd")
 const ArcadeDefaults = preload("res://addons/arcade_ui/arcade_defaults.gd")
+const ArcadeAudio = preload("res://addons/arcade_ui/arcade_audio.gd")
 
 ## Einheitliche Hauptmenü- & Untermenü-Shell im ClanBomber-Stil für Couch-Multiplayer-Spiele.
 ## Bietet MAIN + Untermenüs (PLAYERS, ARENA, MATCH, SETTINGS, EXTRA) mit Gamepad-Focus & Touch-Support.
@@ -19,6 +20,9 @@ signal touch_toggled
 
 var current_page: Page = Page.MAIN
 var auto_fullscreen: bool = true
+var auto_lobby_music: bool = true
+var audio: ArcadeAudio
+var _focus_sfx_ready: bool = false
 
 var _title_lbl: Label
 var _subtitle_lbl: Label
@@ -55,10 +59,25 @@ func _init(game_title: String = "COUCH GAME", subtitle_text: String = "") -> voi
 	_build_shell(game_title, subtitle_text)
 
 func _ready() -> void:
+	audio = ArcadeAudio.new()
+	add_child(audio)
+	if auto_lobby_music:
+		audio.start_lobby_music()
+	var vp := get_viewport()
+	if vp:
+		vp.gui_focus_changed.connect(func(_c: Control) -> void:
+			if _focus_sfx_ready and visible and audio:
+				audio.play_sfx("move")
+		)
+	call_deferred("_enable_focus_sfx")
+
 	if auto_fullscreen:
 		ArcadeDefaults.apply_fullscreen()
 		if _fs_btn:
 			_fs_btn.text = "Vollbild: AN" if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN else "Vollbild: AUS"
+
+func _enable_focus_sfx() -> void:
+	_focus_sfx_ready = true
 
 func _build_shell(game_title: String, subtitle_text: String) -> void:
 	var backdrop := ColorRect.new()
@@ -110,12 +129,33 @@ func _build_shell(game_title: String, subtitle_text: String) -> void:
 	_main_vbox.add_theme_constant_override("separation", 10)
 	main_center.add_child(_main_vbox)
 
-	_start_btn = _add_main_btn("▶ SPIEL STARTEN", func() -> void: start_requested.emit())
-	_players_btn = _add_main_btn("👥 SPIELER & STEUERUNG", func() -> void: show_page(Page.PLAYERS))
-	_arena_btn = _add_main_btn("🏟️ ARENA", func() -> void: show_page(Page.ARENA))
-	_match_btn = _add_main_btn("🏆 MATCH & REGELN", func() -> void: show_page(Page.MATCH))
-	_settings_btn = _add_main_btn("⚙️ EINSTELLUNGEN", func() -> void: show_page(Page.SETTINGS))
-	_extra_btn = _add_main_btn("📊 BESTENLISTE", func() -> void: show_page(Page.EXTRA))
+	_start_btn = _add_main_btn("▶ SPIEL STARTEN", func() -> void:
+		if audio:
+			audio.play_sfx("confirm")
+			if auto_lobby_music:
+				audio.stop_lobby_music()
+		start_requested.emit()
+	)
+	_players_btn = _add_main_btn("👥 SPIELER & STEUERUNG", func() -> void:
+		if audio: audio.play_sfx("confirm")
+		show_page(Page.PLAYERS)
+	)
+	_arena_btn = _add_main_btn("🏟️ ARENA", func() -> void:
+		if audio: audio.play_sfx("confirm")
+		show_page(Page.ARENA)
+	)
+	_match_btn = _add_main_btn("🏆 MATCH & REGELN", func() -> void:
+		if audio: audio.play_sfx("confirm")
+		show_page(Page.MATCH)
+	)
+	_settings_btn = _add_main_btn("⚙️ EINSTELLUNGEN", func() -> void:
+		if audio: audio.play_sfx("confirm")
+		show_page(Page.SETTINGS)
+	)
+	_extra_btn = _add_main_btn("📊 BESTENLISTE", func() -> void:
+		if audio: audio.play_sfx("confirm")
+		show_page(Page.EXTRA)
+	)
 	_extra_btn.visible = false
 	_refresh_main_focus()
 
@@ -164,15 +204,27 @@ func _make_subpage(parent: VBoxContainer, page: Page, header_text: String) -> VB
 	back_btn.custom_minimum_size = Vector2(240, 44)
 	back_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	back_btn.focus_mode = Control.FOCUS_ALL
-	back_btn.pressed.connect(func() -> void: show_page(Page.MAIN))
+	back_btn.pressed.connect(func() -> void:
+		if audio: audio.play_sfx("back")
+		show_page(Page.MAIN)
+	)
 	wrap.add_child(back_btn)
 	_back_btns[page] = back_btn
 	return content
 
 func _build_default_settings() -> void:
-	_master_slider = _make_slider_row(settings_box, "Master", 1.0, func(v: float) -> void: master_volume_changed.emit(v))
-	_music_slider = _make_slider_row(settings_box, "Musik", 0.85, func(v: float) -> void: music_volume_changed.emit(v))
-	_sfx_slider = _make_slider_row(settings_box, "SFX", 1.0, func(v: float) -> void: sfx_volume_changed.emit(v))
+	_master_slider = _make_slider_row(settings_box, "Master", 1.0, func(v: float) -> void:
+		_set_bus_linear(&"Master", v)
+		master_volume_changed.emit(v)
+	)
+	_music_slider = _make_slider_row(settings_box, "Musik", 0.85, func(v: float) -> void:
+		_set_bus_linear(&"Music", v)
+		music_volume_changed.emit(v)
+	)
+	_sfx_slider = _make_slider_row(settings_box, "SFX", 1.0, func(v: float) -> void:
+		_set_bus_linear(&"SFX", v)
+		sfx_volume_changed.emit(v)
+	)
 
 	_fs_btn = Button.new()
 	_fs_btn.custom_minimum_size = Vector2(360, 44)
@@ -242,6 +294,14 @@ func _make_slider_row(parent: VBoxContainer, label_text: String, initial: float,
 	)
 	row.add_child(slider)
 	return slider
+
+func _set_bus_linear(bus_name: StringName, linear: float) -> void:
+	var idx := AudioServer.get_bus_index(bus_name)
+	if idx < 0:
+		return
+	AudioServer.set_bus_mute(idx, linear <= 0.001)
+	if linear > 0.001:
+		AudioServer.set_bus_volume_db(idx, linear_to_db(linear))
 
 func enable_extra_page(button_label: String) -> void:
 	_extra_btn.text = button_label
