@@ -8,7 +8,6 @@ const ArcadeAudio = preload("res://addons/arcade_ui/arcade_audio.gd")
 const ArcadeIcons = preload("res://addons/arcade_ui/arcade_icons.gd")
 
 const BRANDING_LOGO_PATH := "res://addons/arcade_ui/assets/branding/hshl_logo.png"
-const SETTINGS_CFG_PATH := "user://arcade_ui_settings.cfg"
 
 ## Einheitliche Hauptmenü- & Untermenü-Shell im ClanBomber-Stil für Couch-Multiplayer-Spiele.
 ## Bietet MAIN + Untermenüs (PLAYERS, ARENA, MATCH, SETTINGS, EXTRA) mit Gamepad-Focus & Touch-Support.
@@ -58,10 +57,9 @@ var _music_slider: HSlider
 var _sfx_slider: HSlider
 var _fs_btn: Button
 var _touch_btn: Button
-var _branding_btn: Button
 var _branding_badge: PanelContainer
 var _branding_logo: TextureRect
-var branding_enabled: bool = true
+var branding_enabled: bool = ArcadeDefaults.SHOW_BRANDING_BY_DEFAULT
 var _back_btns: Dictionary = {}
 var _page_first_focus: Dictionary = {}
 var _accent_color: Color = Color(1.0, 0.78, 0.2)
@@ -211,7 +209,7 @@ void fragment() {
 	root_vbox.add_child(_footer_lbl)
 
 	_build_branding_badge()
-	_load_branding_setting()
+	set_branding_enabled(branding_enabled)
 	_build_default_settings()
 	show_page(Page.MAIN)
 
@@ -308,14 +306,7 @@ func _build_default_settings() -> void:
 	_touch_btn.pressed.connect(func() -> void: touch_toggled.emit())
 	settings_box.add_child(_touch_btn)
 
-	_branding_btn = Button.new()
-	_branding_btn.custom_minimum_size = Vector2(360, 44)
-	_branding_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_branding_btn.text = "Branding: AN" if branding_enabled else "Branding: AUS"
-	_branding_btn.pressed.connect(func() -> void: set_branding_enabled(not branding_enabled, true))
-	settings_box.add_child(_branding_btn)
-
-	wire_subpage_focus(Page.SETTINGS, [_master_slider, _music_slider, _sfx_slider, _fs_btn, _touch_btn, _branding_btn])
+	wire_subpage_focus(Page.SETTINGS, [_master_slider, _music_slider, _sfx_slider, _fs_btn, _touch_btn])
 
 func _make_slider_row(parent: VBoxContainer, label_text: String, initial: float, cb: Callable) -> HSlider:
 	var row_box := PanelContainer.new()
@@ -417,28 +408,15 @@ func set_branding_texture(texture: Texture2D) -> void:
 	if _branding_badge:
 		_branding_badge.visible = branding_enabled
 
-func _load_branding_setting() -> void:
-	var cfg := ConfigFile.new()
-	if cfg.load(SETTINGS_CFG_PATH) == OK:
-		branding_enabled = bool(cfg.get_value("ui", "branding_enabled", true))
-	set_branding_enabled(branding_enabled, false)
+func set_branding_enabled(enabled: bool) -> void:
+	branding_enabled = enabled
+	if _branding_badge:
+		_branding_badge.visible = branding_enabled and is_instance_valid(_branding_logo) and _branding_logo.texture != null
 
 func set_input_hints_enabled(enabled: bool) -> void:
 	show_input_hints = enabled
 	if _footer_lbl:
 		_footer_lbl.visible = show_input_hints
-
-func set_branding_enabled(enabled: bool, persist: bool = true) -> void:
-	branding_enabled = enabled
-	if _branding_badge:
-		_branding_badge.visible = branding_enabled and is_instance_valid(_branding_logo) and _branding_logo.texture != null
-	if _branding_btn:
-		_branding_btn.text = "Branding: AN" if branding_enabled else "Branding: AUS"
-	if persist:
-		var cfg := ConfigFile.new()
-		cfg.load(SETTINGS_CFG_PATH)
-		cfg.set_value("ui", "branding_enabled", branding_enabled)
-		cfg.save(SETTINGS_CFG_PATH)
 
 func _update_responsive_layout() -> void:
 	var vp := size
@@ -458,7 +436,7 @@ func _update_responsive_layout() -> void:
 		if is_instance_valid(b):
 			b.custom_minimum_size.x = inner_w
 	var setting_w := minf(360.0, maxf(240.0, vp.x - 84.0))
-	for b in [_fs_btn, _touch_btn, _branding_btn]:
+	for b in [_fs_btn, _touch_btn]:
 		if is_instance_valid(b):
 			b.custom_minimum_size.x = setting_w
 	if _branding_badge:

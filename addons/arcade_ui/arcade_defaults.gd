@@ -4,6 +4,9 @@ extends RefCounted
 ## Smarte Controller- und Spieler-Defaults für Couch-Multiplayer-Spiele.
 ## 1 Gamepad -> P1=Gamepad 0, P2..P4=Bots. N Gamepads -> P1..PN=Gamepad 0..N-1. 0 Gamepads -> P1=KB1, P2..P4=Bots.
 
+## Für Messe-/Werbeauftritte zentral auf true setzen und per sync_addons.py verteilen.
+const SHOW_BRANDING_BY_DEFAULT: bool = false
+
 static func detect_slot_modes(slot_count: int = 4) -> Array[Dictionary]:
 	var pads: Array[int] = Input.get_connected_joypads()
 	var result: Array[Dictionary] = []
